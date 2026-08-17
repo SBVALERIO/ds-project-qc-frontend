@@ -1,0 +1,2458 @@
+﻿DS PROJECT QC — CODE AND FUNCTIONAL FLOWS EXPORT
+Export date: 08/14/2026 (MM/DD/YYYY)
+
+PURPOSE
+This document is a readable backup of the application logic and source code.
+It contains no passwords, API keys, repository credentials, dependency folders,
+compiled output, generated images, uploaded project PDFs, or hosting identifiers.
+
+======================================================================
+PART 1 — PRODUCT AND FUNCTIONAL FLOWS
+======================================================================
+
+1. MAIN PROJECT PACKAGE QC FLOW
+
+  Create/select project
+    -> Upload Project Package PDF and identify its origin:
+       Project Package — Revit / Project Package — AutoCAD / Shop Drawings
+    -> Analyze every sheet
+    -> Cross-check Index, Original, Demolition, Proposed, Construction,
+       RCP, Ceiling, Lighting, Circuits, schedules, tags and revision history
+    -> Classify results:
+       WHAT MATCHES / HIGH-CONFIDENCE ERROR / MEDIUM-CONFIDENCE CHECK /
+       MINOR BUT RECORDED
+    -> Convert findings into correction tasks
+    -> Team marks each task CORRECTED or NON APPLICABLE
+    -> NON APPLICABLE requires a written explanation and may become a reusable rule
+    -> Team may add a manual correction missed by the system
+    -> Upload corrected PDF revision
+    -> Run a new QC check and compare with the preceding revision
+    -> Repeat until all objective checks are resolved
+    -> Ask whether to generate/update the Material List for supplier pricing
+
+2. FINDING / TASK FLOW
+
+  Each finding must contain:
+    - Unique number
+    - Confidence level
+    - Evidence type
+    - Exact location: page, sheet number, plan/schedule/legend/detail and room/item
+    - What was found
+    - Expected condition or exact correction instruction
+    - Code section and official source when the issue is regulatory
+    - Status: PENDING / CORRECTED / NON APPLICABLE
+
+  Clicking any summary window, coverage group, comparison row or marker must open
+  and focus the corresponding finding.
+
+3. REGULATORY FINDING FLOW
+
+  Detect possible code issue
+    -> Identify project jurisdiction and adopted code edition
+    -> Research the official code/AHJ source
+    -> Compare the exact drawing condition against the requirement
+    -> If confirmed, show "STANDARD VERIFIED" and provide:
+       exact section + plan evidence + concrete correction recommendation
+    -> If resolution or scope prevents confirmation, keep medium confidence and
+       explicitly state what information is missing
+    -> Final permit compliance remains subject to the licensed professional and AHJ
+
+4. PROJECT AND TIMELINE FLOW [IMPLEMENTED]
+
+  Authorized @ds-miami.com user
+    -> Create a project
+    -> Project receives its own persistent timeline
+    -> Add Project Package, Shop Drawings, Material List, Budget/RFQ,
+       correction, meeting/decision or other event
+    -> Store revision, status, notes, creator email and timestamp
+    -> Display all events in chronological project history
+
+5. ACCESS FLOW [IMPLEMENTED]
+
+  Public visitor
+    -> Can view the QC demonstration screen
+
+  Signed-in @ds-miami.com user
+    -> Can access projects and timelines and register activity
+
+  Admin account
+    -> Can access the consolidated activity report
+
+6. ADMIN REPORT FLOW [IMPLEMENTED]
+
+  Admin opens Reports
+    -> See number of projects, uploads, corrections and contributors
+    -> Filter by project, activity type and person
+    -> Review who uploaded what and which corrections were requested
+    -> Export filtered data as Excel-compatible CSV
+
+7. DESIGN REVISION COMPARISON [UI MODEL / FUTURE ENGINE]
+
+  Select two revisions, for example R03 and R04
+    -> Compare design information rather than only technical errors
+    -> Report category, room, prior value, current value and quantity/area
+    -> Example: Wall Treatment / Gym / Wallpaper -> Limewash / 245 SQFT
+    -> Flag effects on the Material List and supplier pricing
+
+8. MATERIAL LIST FLOW [FUTURE]
+
+  All Project Package QC checks confirmed
+    -> Ask whether to generate Material List
+    -> Extract specifications and verified quantities
+    -> Generate Excel/open-format file using the DS standard
+    -> When a new revision is uploaded, ask whether to update the Material List
+    -> Recalculate changed quantities and prepare supplier budget update
+
+9. CURRENT IMPLEMENTATION STATUS
+
+  IMPLEMENTED
+    - Interactive QC demonstration and correction-task states
+    - Clickable coverage groups and result counters
+    - CORRECTED and NON APPLICABLE interactions
+    - Manual finding input
+    - Project creation and persistent project timeline
+    - DS-domain access restriction
+    - Admin activity report and CSV export
+    - Revision-comparison interface model
+
+  PARTIAL
+    - Findings and drawing evidence shown in the QC screen are currently seeded
+      in the frontend for the CASA@63 example
+    - PDF upload control currently records the selected filename in the UI
+    - Some user actions are local React state and reset after page reload
+
+  FUTURE / NOT YET CONNECTED
+    - Real PDF ingestion, page rendering, OCR and vector/text extraction
+    - Automatic rule engine and cross-sheet comparison
+    - Persistent findings, corrections, Non Applicable reasons and learned rules
+    - Drawing marker coordinates and attached image crops
+    - Real revision-to-revision design change detection
+    - Automatic Material List generation and quantity updates
+    - Supplier RFQ/budget synchronization
+
+10. PRIMARY DATA MODEL
+
+  projects
+    id, name, code, project_type, status,
+    created_by, created_by_email, created_at, updated_at
+
+  project_events
+    id, project_id, document_type, title, revision, status, notes,
+    created_by, created_by_email, created_at
+
+  Required future tables:
+    findings, finding_comments, finding_evidence, qc_rules,
+    rule_exceptions, known_cases, document_revisions, material_lists
+
+======================================================================
+PART 2 — SOURCE CODE
+======================================================================
+
+The source is reproduced below, separated by file. Generated dependencies,
+lockfiles, build artifacts and private deployment metadata are intentionally omitted.
+
+======================================================================
+FILE: README-SETUP-PTBR.md
+======================================================================
+
+# DS Project QC - instalação, banco e publicação
+
+Exportação preparada em 08/14/2026. Este pacote contém o código-fonte da aplicação, banco/migrations e documentação. Não contém PDFs de clientes, dependências instaladas, builds temporários, chaves de API ou credenciais de publicação.
+
+## 1. Arquitetura atual
+
+- Interface: Next.js App Router + React + TypeScript.
+- Build/development server: Vinext + Vite.
+- Runtime publicado: Cloudflare Workers, gerenciado por OpenAI Sites.
+- Banco: Cloudflare D1/SQLite, binding lógico `DB`.
+- Modelagem/migrations: Drizzle ORM e Drizzle Kit.
+- Autenticação publicada: Sign in with ChatGPT e headers de identidade fornecidos pela plataforma.
+- Armazenamento de PDFs: ainda não implementado; o binding R2 está `null`.
+- Motor automático de leitura de PDFs/OpenAI API: ainda não implementado.
+
+## 2. Requisitos locais
+
+- Node.js 22.13 ou superior.
+- npm, incluído no Node.js.
+- Git é recomendado, mas não é necessário apenas para rodar a aplicação.
+
+Confirme as versões:
+
+```powershell
+node --version
+npm --version
+```
+
+## 3. Instalação
+
+Descompacte o ZIP, abra PowerShell ou Terminal dentro da pasta `ds-project-qc` e execute:
+
+```powershell
+npm install
+```
+
+O projeto inclui `package-lock.json` e `pnpm-lock.yaml`, mas o procedimento documentado usa npm. Não misture gerenciadores no mesmo ciclo de instalação.
+
+## 4. Variáveis de ambiente
+
+Nenhuma variável de ambiente é obrigatória na versão atual.
+
+- Não existe `OPENAI_API_KEY` no código atual porque o motor inteligente ainda não foi conectado.
+- Nunca coloque chaves secretas em componentes React, no Git ou no ZIP.
+- Quando a OpenAI API for conectada, `OPENAI_API_KEY` deverá ser configurada somente como segredo do servidor/hospedagem.
+
+## 5. Banco D1 local
+
+O binding local é configurado em `vite.config.ts` com:
+
+- binding: `DB`
+- database name: `site-creator-d1`
+- estado local: `.wrangler/` (ignorado pelo Git)
+
+Inicialize as tabelas locais uma vez:
+
+```powershell
+npm run db:local:init
+```
+
+A migration executada é:
+
+```text
+drizzle/0000_clean_ben_urich.sql
+```
+
+As tabelas atuais são:
+
+- `projects`
+- `project_events`
+
+Quando `db/schema.ts` for alterado, gere e revise uma nova migration:
+
+```powershell
+npm run db:generate
+```
+
+Não altere migrations já aplicadas em produção. Crie uma migration nova.
+
+## 6. Rodar localmente
+
+```powershell
+npm run dev
+```
+
+Abra o endereço local exibido no terminal, normalmente `http://localhost:3000`.
+
+Limitação de autenticação local:
+
+- A demonstração pública de QC abre normalmente.
+- As áreas `Projetos` e `Reports - Admin` dependem dos headers `oai-authenticated-user-*`, fornecidos apenas pela hospedagem com Sign in with ChatGPT.
+- Em um navegador local comum essas áreas retornarão 401 até que o desenvolvedor implemente um mock de autenticação exclusivo para desenvolvimento ou teste a versão publicada.
+- Nunca aceite headers de identidade enviados pelo navegador em produção.
+
+## 7. Validar antes de publicar
+
+```powershell
+npm run build
+```
+
+O build precisa gerar `dist/server/index.js`. As migrations e `.openai/hosting.json` são copiadas para `dist/.openai/` durante o build.
+
+O comando abaixo pode ser usado durante uma revisão técnica, mas a base atual ainda possui findings legados de acessibilidade/React que devem ser tratados separadamente:
+
+```powershell
+npm run lint
+```
+
+## 8. Publicar uma atualização no site existente
+
+O site atual é gerenciado pelo OpenAI Sites. O arquivo `.openai/hosting.json` contém o identificador do projeto existente e o binding D1.
+
+Fluxo recomendado:
+
+1. Edite o código.
+2. Execute `npm run build`.
+3. Faça commit das alterações no Git.
+4. Abra a pasta do projeto no Codex com o plugin Sites disponível.
+5. Peça: `Valide e publique esta versão no projeto Sites existente definido em .openai/hosting.json`.
+6. O fluxo de Sites obtém uma credencial temporária, envia o commit, empacota `dist/` e migrations, salva uma versão e publica.
+7. Confirme que o deployment terminou com sucesso e abra a URL publicada.
+
+O remote Git chamado `sites` é interno à plataforma e exige credenciais temporárias. Ele não deve ser tratado como um repositório público ou compartilhável e não deve receber token salvo na URL ou configuração do Git.
+
+## 9. Publicar fora do OpenAI Sites
+
+Este pacote não está configurado para `wrangler deploy` diretamente em uma conta Cloudflare independente. Para migrar, um desenvolvedor deverá:
+
+1. Criar um Worker e banco D1 na conta Cloudflare de destino.
+2. Criar uma configuração Wrangler própria.
+3. Aplicar as migrations ao novo banco.
+4. Configurar os bindings `ASSETS`, `DB` e `IMAGES` necessários ao Worker.
+5. Substituir ou recriar o fluxo de autenticação atualmente fornecido pelo Sites/ChatGPT.
+6. Configurar domínio, acesso e segredos no novo ambiente.
+
+A aplicação também não está atualmente conectada à Vercel nem ao Supabase, apesar de essas contas poderem existir separadamente.
+
+## 10. Arquivos principais
+
+- `app/page.tsx`: demonstração e findings do QC.
+- `app/ProjectsWorkspace.tsx`: projetos, timeline e comparação de revisões.
+- `app/ReportsWorkspace.tsx`: report administrativo e CSV.
+- `app/api/`: endpoints de projetos, eventos e reports.
+- `app/chatgpt-auth.ts`: leitura segura da identidade publicada.
+- `db/schema.ts`: schema D1.
+- `drizzle/`: migration SQL.
+- `worker/index.ts`: entrada do Cloudflare Worker.
+- `vite.config.ts`: Vinext, Worker e bindings locais.
+- `.openai/hosting.json`: vínculo com o projeto Sites existente.
+- `DS-PROJECT-QC-CODE-AND-FLOWS.txt`: exportação textual consolidada.
+
+## 11. Estado real do produto
+
+Implementado:
+
+- Interface de QC e tasks demonstrativa.
+- Projetos e timeline persistentes em D1.
+- Identificação de quem registrou cada atividade.
+- Report administrativo e exportação CSV.
+- Controle de acesso corporativo e administrativo.
+
+Ainda parcial ou futuro:
+
+- Upload real e armazenamento de PDFs.
+- OCR/renderização e leitura automática.
+- Motor de regras e comparação de folhas.
+- Persistência de findings, justificativas e regras aprendidas.
+- Comparação automática entre revisões.
+- Material List automática.
+
+Consulte `DS-PROJECT-QC-CODE-AND-FLOWS.txt` para o fluxo funcional detalhado e uma cópia consolidada do código.
+
+======================================================================
+FILE: app/page.tsx
+======================================================================
+
+"use client";
+
+import { useMemo, useRef, useState } from "react";
+import { ProjectsWorkspace } from "./ProjectsWorkspace";
+import { ReportsWorkspace } from "./ReportsWorkspace";
+
+type FindingStatus = "Pendente" | "Corrigido" | "Non Applicable";
+
+type Finding = {
+  id: number;
+  title: string;
+  sheet: string;
+  confidence: "Alta" | "Média" | "Menor";
+  evidence: "Schedule" | "Visual" | "Cross-check";
+  status: FindingStatus;
+  summary: string;
+  expected: string;
+  locations?: string[];
+  codeReference?: string;
+  codeUrl?: string;
+};
+
+const initialFindings: Finding[] = [
+  {
+    id: 1,
+    title: "Index não lista todas as pranchas emitidas",
+    sheet: "p. 1 · I-000 ↔ conjunto completo",
+    confidence: "Alta",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "O PDF contém 30 páginas, mas aproximadamente 15 pranchas .1/.2 presentes no conjunto não aparecem no Index.",
+    expected: "O Index deve listar individualmente toda prancha emitida, com número e título corretos.",
+  },
+  {
+    id: 2,
+    title: "Código I-112.1 duplicado em duas pranchas",
+    sheet: "p. 24 ↔ p. 26 · Wall Treatment / Curtains",
+    confidence: "Alta",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "Curtains Plan – Second Floor reutiliza I-112.1, já usado por Wall Treatment – Second Floor.",
+    expected: "Cada prancha deve ter código único; pela sequência, confirmar I-113.1 para Curtains.",
+  },
+  {
+    id: 3,
+    title: "Demolition Plan ausente apesar do demolition scope",
+    sheet: "p. 1, 6–7 · I-102 / Construction Plans",
+    confidence: "Alta",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "I-102 não foi emitida, mas as Construction Plans mandam remover janela, preencher parede e remover curtain pocket.",
+    expected: "Toda demolição deve ser organizada e representada no Demolition Plan correspondente.",
+  },
+  {
+    id: 4,
+    title: "Nota de J-boxes 0–10V ausente",
+    sheet: "p. 10–14 · RCP / Lighting · dois pavimentos",
+    confidence: "Alta",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "As legendas possuem J-boxes, mas não registram quantas devem ser 0–10V.",
+    expected: "Adicionar nas legendas de RCP e Lighting: considerar metade das J-boxes do projeto 0–10V.",
+  },
+  { id: 5, title: "Escala conflitante no RCP do segundo pavimento", sheet: "p. 11 · I-106.1", confidence: "Alta", evidence: "Visual", status: "Pendente", summary: "O título do desenho indica 1/4\" = 1'-0\"; o titleblock indica 3/16\" = 1'-0\".", expected: "A escala do desenho e a escala do titleblock devem coincidir." },
+  { id: 6, title: "Escala conflitante na prancha de detalhes", sheet: "p. 12 · I-106.2", confidence: "Alta", evidence: "Visual", status: "Pendente", summary: "Os quatro detalhes indicam 3\" = 1'-0\"; o titleblock indica 3/16\" = 1'-0\".", expected: "Usar a escala correta ou registrar “As indicated” no titleblock." },
+  { id: 7, title: "Placeholder XX SQFT permanece no Ceiling Legend", sheet: "p. 10 e 15 · I-106 / I-108", confidence: "Alta", evidence: "Schedule", status: "Pendente", summary: "A linha de curtain pockets termina em XX SQFT.", expected: "Substituir todo placeholder pela quantidade calculada e verificada." },
+  { id: 8, title: "Revision clouds sem revisão vinculada", sheet: "p. 12 · I-106.2", confidence: "Alta", evidence: "Cross-check", status: "Pendente", summary: "Existem duas clouds vermelhas, mas o Revision Schedule contém somente R00 e não há delta de identificação.", expected: "Toda cloud deve apontar para uma revisão registrada no titleblock." },
+  { id: 9, title: "Revision Schedule pula de R00 para R03", sheet: "p. 10 · I-106", confidence: "Alta", evidence: "Schedule", status: "Pendente", summary: "R01 e R02 não aparecem entre R00 e R03.", expected: "Manter sequência e histórico de revisões rastreável ou justificar formalmente a omissão." },
+  { id: 10, title: "Datas de R01 anteriores ao desenho original", sheet: "p. 21, 24 e 28", confidence: "Alta", evidence: "Schedule", status: "Pendente", summary: "R00 é 02/27/2026, mas R01 aparece como 01/06/2026. Provável inversão para 06/01/2026.", expected: "Uma revisão não pode ter data anterior à emissão original." },
+  { id: 11, title: "Nota fixa quatro outlets extras", sheet: "p. 19 · I-110", confidence: "Alta", evidence: "Visual", status: "Pendente", summary: "A nota determina “CONSIDER 04 EXTRA OUTLETS TOTAL”.", expected: "A quantidade de extras deve depender da quantidade e necessidade efetiva do projeto." },
+  { id: 12, title: "Floor tags não seguem o padrão FL", sheet: "p. 8–9 · I-105 / I-105.1", confidence: "Alta", evidence: "Cross-check", status: "Pendente", summary: "Os acabamentos de piso são identificados apenas por 01, 02, 03 etc.", expected: "Todo piso alterado deve receber tag iniciada por FL." },
+  { id: 13, title: "Confirmar blackout exatamente na dimensão da janela", sheet: "p. 25–26 · Curtain Plans", confidence: "Média", evidence: "Visual", status: "Pendente", summary: "A geometria parece alinhada, mas a leitura não permite confirmar todas as seis ocorrências individualmente.", expected: "Blackout deve ter a dimensão exata da janela." },
+  { id: 14, title: "Confirmar sheer na dimensão integral do curtain pocket", sheet: "p. 25–26 · Curtain Plans", confidence: "Média", evidence: "Visual", status: "Pendente", summary: "Existem dimensões, porém nem todos os limites podem ser correlacionados com segurança pela resolução.", expected: "Sheer deve ocupar a dimensão integral do curtain pocket." },
+  { id: 15, title: "Verificar door maneuvering clearances", sheet: "p. 21–22 · Door Schedules", confidence: "Média", evidence: "Visual", status: "Pendente", summary: "Larguras, tipos e swings estão representados, mas não há cotas suficientes para aprovar todos os clearances.", expected: "Confirmar clear opening e maneuvering clearance conforme código aplicável e condições do local." },
+  {
+    id: 16,
+    title: "Garagem: receptáculo por vaga não demonstrado",
+    sheet: "p. 19 · I-110 · Garage (3 vehicle bays)",
+    confidence: "Alta",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "A garagem possui três vagas, mas a planta mostra somente um receptáculo de uso geral junto ao storage/lavatório. Não há um receptáculo claramente localizado para atender cada vehicle bay; tomadas dedicadas a equipamentos não substituem esse mínimo.",
+    expected: "Adicionar ou realocar no mínimo um receptáculo de uso geral para cada uma das três vagas, todos a no máximo 5'-6\" AFF. Identificar proteção GFCI e alimentar os receptáculos obrigatórios por circuito de garagem 120 V, 20 A. Coordenar posição final com portas, storage e equipamentos e submeter ao electrical engineer/AHJ.",
+    codeReference: "2023 Florida Building Code – Residential, Part VIII (2020 NEC): 210.52(G)(1), 210.11(C)(4) e 210.8(A)(2).",
+    codeUrl: "https://www.floridabuilding.org/fbc/commission/FBC_0824/Commission_Education_POC/1279/1279-0-PRESMAT.pdf",
+  },
+  { id: 17, title: "Texto “EXTERIOR – EXTERIOR” duplicado", sheet: "p. 23 · I-112", confidence: "Menor", evidence: "Schedule", status: "Pendente", summary: "A descrição possui a palavra EXTERIOR repetida.", expected: "Remover a duplicação e manter a legenda limpa." },
+  {
+    id: 18,
+    title: "Grafias divergentes para Stucco Sabbiato 878",
+    sheet: "I-105 / I-106 / I-112 · PDF p. 8, 10 e 23",
+    confidence: "Menor",
+    evidence: "Cross-check",
+    status: "Pendente",
+    summary: "A mesma especificação de acabamento exterior aparece corretamente em duas legendas, mas com grafia divergente na legenda de Wall Treatment.",
+    expected: "Confirmar a nomenclatura da especificação aprovada e, sendo STUCCO SABBIATO 878, corrigir na Wall Finish Legend da folha I-112: STRUCCO SABIATTO 878 → STUCCO SABBIATO 878.",
+    locations: [
+      "Floor Finish Legend — folha I-105, PDF p. 8: “EXTERIOR – STUCCO SABBIATO 878”.",
+      "Drop Ceiling Legend – First Floor — folha I-106, PDF p. 10: “EXTERIOR AREA ... STUCCO SABBIATO”.",
+      "Wall Finish Legend (Wall Treatment) — folha I-112, PDF p. 23: “EXTERIOR – STRUCCO SABIATTO 878”.",
+    ],
+  },
+  { id: 19, title: "Layers de plumbing/bath aparecem em pranchas não relacionadas", sheet: "p. 22–26 · múltiplas disciplinas", confidence: "Menor", evidence: "Visual", status: "Pendente", summary: "Labels de fixtures e bath accessories permanecem em Door, Wall Treatment e Curtain Plans.", expected: "Revisar layers do AutoCAD e exibir somente informações relevantes para cada prancha." },
+];
+
+const navItems = ["Visão geral", "Projetos", "Pranchas", "Comparações", "Tasks", "Schedules", "Revisões", "Reports — Admin", "Casos conhecidos"];
+
+const verifiedMatches = [
+  "Door Schedule: tags e quantidades fecham nos dois pavimentos",
+  "Door codes não estão duplicados nem misturados entre pavimentos",
+  "Wall Treatment ↔ Baseboard compatíveis, inclusive acabamentos to the floor",
+  "Millwork corretamente tratado sem baseboard",
+  "Curtain pockets cotados em 8\" ou mais e detalhe construtivo com mínimo de 8\"",
+  "Nota da cozinha manda seguir fabricator para localização e quantidade de outlets",
+  "RCP, Ceiling, Lighting e Circuits mantêm posições e legendas coordenadas",
+  "Original e Proposed Mechanical têm diferenciação gráfica clara",
+];
+
+const coverageGroups = [
+  { pages: "01", name: "Index", result: "1 erro", ids: [1] },
+  { pages: "02–07", name: "Original / Proposed / Construction", result: "1 erro", ids: [3] },
+  { pages: "08–09", name: "Flooring / Baseboard", result: "1 erro", ids: [12] },
+  { pages: "10–18", name: "RCP / Lighting / Ceiling / Circuits", result: "5 erros", ids: [4, 5, 6, 7, 8, 9] },
+  { pages: "19–20", name: "Outlets", result: "2 erros confirmados", ids: [11, 16] },
+  { pages: "21–22", name: "Doors / Hardware", result: "Bate + check", ids: [15] },
+  { pages: "23–24", name: "Wall Treatment", result: "Bate + 2 menores", ids: [17, 18, 19] },
+  { pages: "25–26", name: "Curtains", result: "1 erro + 2 checks", ids: [2, 13, 14, 19] },
+  { pages: "27–30", name: "Mechanical", result: "Bate + revisão", ids: [10] },
+];
+
+export default function Home() {
+  const [findings, setFindings] = useState(initialFindings);
+  const [activeFinding, setActiveFinding] = useState(4);
+  const [activeNav, setActiveNav] = useState("Comparações");
+  const [filter, setFilter] = useState<"Todos" | FindingStatus>("Todos");
+  const [groupFilter, setGroupFilter] = useState<{ name: string; ids: number[] } | null>(null);
+  const [showNa, setShowNa] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [naReason, setNaReason] = useState("");
+  const [naScope, setNaScope] = useState<"item" | "regra">("item");
+  const [manualText, setManualText] = useState("");
+  const [toast, setToast] = useState("");
+  const [uploadedProject, setUploadedProject] = useState("");
+  const projectInputRef = useRef<HTMLInputElement>(null);
+  const findingsPanelRef = useRef<HTMLElement>(null);
+
+  const visibleFindings = useMemo(
+    () => findings.filter((item) => (!groupFilter || groupFilter.ids.includes(item.id)) && (filter === "Todos" || item.status === filter)),
+    [findings, filter, groupFilter],
+  );
+
+  const counts = useMemo(
+    () => ({
+      pending: findings.filter((item) => item.status === "Pendente").length,
+      corrected: findings.filter((item) => item.status === "Corrigido").length,
+      na: findings.filter((item) => item.status === "Non Applicable").length,
+    }),
+    [findings],
+  );
+
+  function updateStatus(id: number, status: FindingStatus) {
+    setFindings((items) => items.map((item) => (item.id === id ? { ...item, status } : item)));
+    setToast(status === "Corrigido" ? "Task marcada como corrigida." : "Exceção registrada para revisão.");
+    window.setTimeout(() => setToast(""), 2600);
+  }
+
+  function openVerificationGroup(name: string, ids: number[]) {
+    setGroupFilter({ name, ids });
+    setFilter("Todos");
+    setActiveFinding(ids[0]);
+    window.setTimeout(() => findingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function openStatus(status: "Todos" | FindingStatus) {
+    setGroupFilter(null);
+    setFilter(status);
+    window.setTimeout(() => findingsPanelRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
+  }
+
+  function saveNa() {
+    if (!naReason.trim()) return;
+    updateStatus(activeFinding, "Non Applicable");
+    setShowNa(false);
+    setNaReason("");
+  }
+
+  function addManualFinding() {
+    if (!manualText.trim()) return;
+    const nextId = Math.max(...findings.map((item) => item.id)) + 1;
+    setFindings((items) => [
+      ...items,
+      {
+        id: nextId,
+        title: manualText,
+        sheet: "Correção manual · aguardando localização",
+        confidence: "Alta",
+        evidence: "Visual",
+        status: "Pendente",
+        summary: "Achado adicionado pela equipe DS e registrado como algo que o sistema não identificou.",
+        expected: "Será avaliado como candidato a nova regra objetiva.",
+      },
+    ]);
+    setActiveFinding(nextId);
+    setManualText("");
+    setShowManual(false);
+    setToast("Correção manual adicionada e sinalizada para aprendizado.");
+    window.setTimeout(() => setToast(""), 2800);
+  }
+
+  function handleProjectUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setUploadedProject(file.name);
+    setToast(`Projeto “${file.name}” carregado para correção.`);
+    window.setTimeout(() => setToast(""), 3200);
+  }
+
+  const selected = findings.find((item) => item.id === activeFinding) ?? findings[0];
+
+  return (
+    <main className="app-shell">
+      <header className="topbar">
+        <div className="brand-mark">DS</div>
+        <div className="brand-copy">
+          <strong>PROJECT QC</strong>
+          <span>Design Solution · controle técnico</span>
+        </div>
+        <div className="workflow" aria-label="Etapas do fluxo">
+          {[
+            ["1", "Analisar"],
+            ["2", "Corrigir"],
+            ["3", "Revalidar"],
+            ["4", "Material List"],
+          ].map(([number, label], index) => (
+            <div className={`workflow-step ${index === 1 ? "is-active" : ""}`} key={label}>
+              <span>{number}</span>{label}
+            </div>
+          ))}
+        </div>
+        <button className="profile" aria-label="Perfil de Stefany">SV</button>
+      </header>
+
+      <aside className="sidebar">
+        <div className="project-switcher">
+          <span>PROJETO ATIVO</span>
+          <strong>CASA@63</strong>
+          <small>Project Package AutoCAD · R02</small>
+        </div>
+        <nav aria-label="Navegação principal">
+          {navItems.map((item, index) => (
+            <button className={activeNav === item ? "active" : ""} key={item} onClick={() => setActiveNav(item)}>
+              <span className="nav-icon">{["⌂", "▣", "▤", "⇄", "✓", "▦", "↻", "≡", "◫"][index]}</span>{item}
+              {item === "Tasks" && <em>{counts.pending}</em>}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-note">
+          <span>STANDARD ATIVO</span>
+          <strong>DS CAD Standards</strong>
+          <small>23 regras objetivas · v1.4</small>
+        </div>
+      </aside>
+
+      <section className="workspace">
+        {activeNav === "Projetos" ? <ProjectsWorkspace /> : activeNav === "Reports — Admin" ? <ReportsWorkspace /> : <>
+        <div className="project-head">
+          <div>
+            <div className="eyebrow">PROJECT PACKAGE CHECK</div>
+            <h1>CASA@63 · revisão técnica completa</h1>
+            <p>30 páginas analisadas · Project Package feito no AutoCAD · 07/15/2026.</p>
+          </div>
+          <div className="head-actions">
+            <button className="button secondary">Ver histórico de revisões</button>
+            <input
+              ref={projectInputRef}
+              className="visually-hidden"
+              type="file"
+              accept="application/pdf,.pdf"
+              onChange={handleProjectUpload}
+              aria-label="Selecionar projeto em PDF para correção"
+            />
+            <button className="button primary upload-project" onClick={() => projectInputRef.current?.click()}>
+              ↑ Carregar projeto para correção
+            </button>
+          </div>
+        </div>
+
+        {uploadedProject && (
+          <div className="uploaded-project" role="status">
+            <span>✓</span>
+            <div><strong>Projeto carregado</strong><small>{uploadedProject}</small></div>
+            <button onClick={() => projectInputRef.current?.click()}>Trocar arquivo</button>
+          </div>
+        )}
+
+        <div className="check-group">
+          <div>
+            <span className="group-label">GRUPO DE CHECAGEM</span>
+            <strong>Package completo · 30 páginas</strong>
+          </div>
+          <div className="sheet-chips">
+            {[
+              ["13 alta confiança", false],
+              ["3 média confiança", false],
+              ["3 registrados", true],
+              ["8 grupos batem", true],
+            ].map(([label, ok]) => <span className={ok ? "chip-ok" : "chip-warn"} key={String(label)}>{ok ? "✓" : "!"} {label}</span>)}
+          </div>
+          <div className="group-progress"><b>30/30</b><span>páginas revisadas</span></div>
+        </div>
+
+        <div className="content-grid">
+          <section className="viewer-panel">
+            <div className="viewer-toolbar">
+              <div className="sheet-tabs"><button className="selected">QC geral</button><button>Index</button><button>Teto</button><button>Schedules</button><button>Revisões</button></div>
+              <div className="review-source"><span>FONTE</span><strong>CASA@63 · R02.pdf</strong></div>
+            </div>
+
+            <div className="qc-dashboard">
+              <div className="coverage-head"><span>COBERTURA PÁGINA POR PÁGINA</span><strong>Todos os grupos do package foram cruzados</strong></div>
+              <div className="coverage-grid">
+                {coverageGroups.map((group) => (
+                  <button
+                    className={`coverage-item ${groupFilter?.name === group.name ? "active" : ""}`}
+                    key={group.pages}
+                    onClick={() => openVerificationGroup(group.name, group.ids)}
+                    aria-label={`Abrir verificações de ${group.name}`}
+                  >
+                    <b>{group.pages}</b><span>{group.name}</span><em>{group.result}</em><i>Ver verificações →</i>
+                  </button>
+                ))}
+              </div>
+
+              <div className="selected-evidence">
+                <div className="evidence-number">{selected.id}</div>
+                <div>
+                  <span>ITEM SELECIONADO · {selected.confidence.toUpperCase()} CONFIANÇA</span>
+                  <h2>{selected.title}</h2>
+                  <p>{selected.sheet}</p>
+                </div>
+                <div className={`evidence-text ${selected.codeReference ? "has-code" : ""}`}>
+                  <p><b>Encontrado</b>{selected.summary}</p>
+                  <p><b>{selected.codeReference ? "Como corrigir" : "Esperado"}</b>{selected.expected}</p>
+                  {selected.locations && <div className="evidence-locations"><b>Onde está escrito</b><ul>{selected.locations.map((location) => <li key={location}>{location}</li>)}</ul></div>}
+                  {selected.codeReference && <p className="code-reference"><b>Base normativa verificada</b>{selected.codeReference} {selected.codeUrl && <a href={selected.codeUrl} target="_blank" rel="noreferrer">Abrir fonte oficial ↗</a>}</p>}
+                </div>
+              </div>
+            </div>
+
+            <div className="verified-card">
+              <div className="verified-title"><span>✓</span><div><small>O QUE BATE</small><strong>{verifiedMatches.length} validações confirmadas</strong></div></div>
+              <div className="verified-grid">{verifiedMatches.map((item) => <div key={item}><span>✓</span>{item}</div>)}</div>
+            </div>
+          </section>
+
+          <aside className="findings-panel" ref={findingsPanelRef}>
+            <div className="findings-summary">
+              <button onClick={() => openStatus("Pendente")}><b>{counts.pending}</b><span>Pendentes</span></button>
+              <button onClick={() => openStatus("Corrigido")}><b>{counts.corrected}</b><span>Corrigidos</span></button>
+              <button onClick={() => openStatus("Non Applicable")}><b>{counts.na}</b><span>Non Applicable</span></button>
+            </div>
+            <div className="findings-head">
+              <div><span>{groupFilter ? `RESULTADOS · ${groupFilter.name}` : "RESULTADOS"}</span><strong>{visibleFindings.length} verificações</strong></div>
+              {groupFilter && <button className="clear-group" onClick={() => setGroupFilter(null)}>Mostrar todas</button>}
+              <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} aria-label="Filtrar resultados">
+                <option>Todos</option><option>Pendente</option><option>Corrigido</option><option>Non Applicable</option>
+              </select>
+            </div>
+            <div className="findings-list">
+              {visibleFindings.map((item) => (
+                <article className={`finding-card ${activeFinding === item.id ? "selected" : ""}`} key={item.id} onClick={() => setActiveFinding(item.id)}>
+                  <div className="finding-number">{item.id}</div>
+                  <div className="finding-content">
+                    <div className="badges"><span className={item.confidence === "Alta" ? "high" : item.confidence === "Média" ? "medium" : "minor"}>{item.confidence} confiança</span><span>{item.evidence}</span>{item.codeReference && <span className="code-badge">Norma verificada</span>}</div>
+                    <h3>{item.title}</h3>
+                    <p>{item.sheet}</p>
+                    {activeFinding === item.id && (
+                      <div className="finding-detail">
+                        <p><b>Encontrado:</b> {item.summary}</p>
+                        <p><b>{item.codeReference ? "Como corrigir:" : "Esperado:"}</b> {item.expected}</p>
+                        {item.locations && <div className="finding-locations"><b>Onde está escrito:</b><ul>{item.locations.map((location) => <li key={location}>{location}</li>)}</ul></div>}
+                        {item.codeReference && <div className="card-code-reference"><b>Base normativa:</b> {item.codeReference} {item.codeUrl && <a href={item.codeUrl} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Fonte oficial ↗</a>}</div>}
+                        <div className="card-actions">
+                          <button className="correct" onClick={(event) => { event.stopPropagation(); updateStatus(item.id, "Corrigido"); }}>✓ Corrigido</button>
+                          <button className="na" onClick={(event) => { event.stopPropagation(); setShowNa(true); }}>Non Applicable</button>
+                        </div>
+                      </div>
+                    )}
+                    {item.status !== "Pendente" && <span className={`status ${item.status === "Corrigido" ? "done" : "na-status"}`}>{item.status}</span>}
+                  </div>
+                </article>
+              ))}
+            </div>
+            <button className="manual-button" onClick={() => setShowManual(true)}>＋ Adicionar correção que o sistema não identificou</button>
+          </aside>
+        </div>
+
+        <div className="bottom-gate">
+          <div className="gate-icon">↻</div>
+          <div><strong>Pronto para um novo check?</strong><span>Depois das correções, carregue a nova revisão. Os itens persistentes serão reabertos automaticamente.</span></div>
+          <div className="gate-status"><b>{counts.pending}</b><span>tasks ainda pendentes</span></div>
+          <button className="button primary">Carregar nova revisão</button>
+        </div>
+        </>}
+      </section>
+
+      {showNa && (
+        <div className="modal-backdrop" role="presentation" onMouseDown={() => setShowNa(false)}>
+          <section className="modal" role="dialog" aria-modal="true" aria-labelledby="na-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="close" onClick={() => setShowNa(false)}>×</button>
+            <span className="modal-kicker">ITEM #{selected.id}</span>
+            <h2 id="na-title">Por que não se aplica?</h2>
+            <p>A justificativa fica salva no histórico e ajuda a evitar falsos positivos nas próximas revisões.</p>
+            <textarea value={naReason} onChange={(event) => setNaReason(event.target.value)} placeholder="Explique a exceção com o máximo de clareza..." autoFocus />
+            <fieldset>
+              <legend>Esta justificativa vale para:</legend>
+              <label><input type="radio" checked={naScope === "item"} onChange={() => setNaScope("item")} /> Somente este item</label>
+              <label><input type="radio" checked={naScope === "regra"} onChange={() => setNaScope("regra")} /> Casos parecidos — propor como exceção geral</label>
+            </fieldset>
+            {naScope === "regra" && <div className="rule-notice">A proposta entrará na fila “Regras candidatas” e só será incorporada após validação da equipe DS.</div>}
+            <button className="button primary full" disabled={!naReason.trim()} onClick={saveNa}>Salvar justificativa</button>
+          </section>
+        </div>
+      )}
+
+      {showManual && (
+        <div className="drawer-backdrop" role="presentation" onMouseDown={() => setShowManual(false)}>
+          <section className="drawer" role="dialog" aria-modal="true" aria-labelledby="manual-title" onMouseDown={(event) => event.stopPropagation()}>
+            <button className="close" onClick={() => setShowManual(false)}>×</button>
+            <span className="modal-kicker">APRENDIZADO SUPERVISIONADO</span>
+            <h2 id="manual-title">Adicionar correção manual</h2>
+            <p>Registre algo que você viu e o sistema não sinalizou. Isso será guardado como caso conhecido e candidato a regra.</p>
+            <label className="field-label">O que foi identificado?</label>
+            <textarea value={manualText} onChange={(event) => setManualText(event.target.value)} placeholder="Ex.: O curtain pocket está cotado com 6”, abaixo do mínimo de 8”..." autoFocus />
+            <label className="field-label">Evidência visual</label>
+            <button className="dropzone"><span>▧</span><strong>Anexar print ou recorte da prancha</strong><small>PNG, JPG ou recorte direto do viewer</small></button>
+            <div className="drawer-note"><b>Como o sistema aprende:</b> a correção será revisada antes de virar regra permanente.</div>
+            <button className="button primary full" disabled={!manualText.trim()} onClick={addManualFinding}>Adicionar à lista de tasks</button>
+          </section>
+        </div>
+      )}
+
+      {toast && <div className="toast">✓ {toast}</div>}
+    </main>
+  );
+}
+
+======================================================================
+FILE: app/ProjectsWorkspace.tsx
+======================================================================
+
+"use client";
+
+import { FormEvent, useEffect, useMemo, useState } from "react";
+
+type ProjectEvent = {
+  id: string;
+  documentType: string;
+  title: string;
+  revision: string;
+  status: string;
+  notes: string;
+  createdByEmail: string;
+  createdAt: string;
+};
+
+type Project = {
+  id: string;
+  name: string;
+  code: string;
+  projectType: string;
+  status: string;
+  updatedAt: string;
+  events: ProjectEvent[];
+};
+
+type AccessState = "loading" | "ready" | "signin" | "forbidden" | "error";
+
+export function ProjectsWorkspace() {
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [activeId, setActiveId] = useState("");
+  const [access, setAccess] = useState<AccessState>("loading");
+  const [userEmail, setUserEmail] = useState("");
+  const [showCreate, setShowCreate] = useState(false);
+  const [showEvent, setShowEvent] = useState(false);
+  const [showCompare, setShowCompare] = useState(false);
+  const [comparisonGenerated, setComparisonGenerated] = useState(false);
+  const [compareFrom, setCompareFrom] = useState("R03");
+  const [compareTo, setCompareTo] = useState("R04");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [projectForm, setProjectForm] = useState({ name: "", code: "", projectType: "Residential" });
+  const [eventForm, setEventForm] = useState({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
+
+  const activeProject = useMemo(
+    () => projects.find((project) => project.id === activeId) ?? projects[0],
+    [projects, activeId],
+  );
+  const revisions = useMemo(() => Array.from(new Set(activeProject?.events.map((item) => item.revision).filter(Boolean) ?? [])).sort((a, b) => a.localeCompare(b, undefined, { numeric: true })), [activeProject]);
+
+  function openComparison() {
+    const previous = revisions.at(-2);
+    const current = revisions.at(-1);
+    if (previous && current) {
+      setCompareFrom(previous);
+      setCompareTo(current);
+    }
+    setComparisonGenerated(false);
+    setShowCompare(true);
+  }
+
+  async function loadProjects() {
+    setAccess("loading");
+    try {
+      const response = await fetch("/api/projects", { cache: "no-store" });
+      if (response.status === 401) return setAccess("signin");
+      if (response.status === 403) return setAccess("forbidden");
+      if (!response.ok) throw new Error("load failed");
+      const data = (await response.json()) as { projects: Project[]; user: { email: string } };
+      setProjects(data.projects);
+      setUserEmail(data.user.email);
+      setActiveId((current) => current || data.projects[0]?.id || "");
+      setAccess("ready");
+    } catch {
+      setAccess("error");
+    }
+  }
+
+  useEffect(() => { void loadProjects(); }, []);
+
+  async function createProject(event: FormEvent) {
+    event.preventDefault();
+    if (!projectForm.name.trim()) return;
+    setBusy(true);
+    const response = await fetch("/api/projects", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(projectForm),
+    });
+    setBusy(false);
+    if (!response.ok) return setMessage("Não foi possível criar o projeto.");
+    const data = (await response.json()) as { project: Project };
+    setProjects((items) => [data.project, ...items]);
+    setActiveId(data.project.id);
+    setProjectForm({ name: "", code: "", projectType: "Residential" });
+    setShowCreate(false);
+    setMessage(`Projeto ${data.project.name} criado com timeline própria.`);
+  }
+
+  async function addEvent(event: FormEvent) {
+    event.preventDefault();
+    if (!activeProject || !eventForm.title.trim()) return;
+    setBusy(true);
+    const response = await fetch("/api/project-events", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...eventForm, projectId: activeProject.id }),
+    });
+    setBusy(false);
+    if (!response.ok) return setMessage("Não foi possível registrar esta etapa.");
+    const data = (await response.json()) as { event: ProjectEvent };
+    setProjects((items) => items.map((project) => project.id === activeProject.id
+      ? { ...project, events: [data.event, ...project.events], updatedAt: data.event.createdAt }
+      : project));
+    setEventForm({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
+    setShowEvent(false);
+    setMessage("Etapa adicionada à timeline do projeto.");
+  }
+
+  if (access === "loading") {
+    return <div className="projects-state"><div className="loading-ring"/><strong>Carregando projetos…</strong></div>;
+  }
+
+  if (access === "signin") {
+    return (
+      <div className="projects-state protected-state">
+        <div className="state-icon">◉</div>
+        <span>ÁREA PROTEGIDA DA EQUIPE DS</span>
+        <h1>Entre para acessar os projetos</h1>
+        <p>A página pública de demonstração continua aberta. Projetos e timelines exigem identificação para proteger as informações da empresa.</p>
+        <a className="button primary signin-button" href="/signin-with-chatgpt?return_to=%2F">Entrar com ChatGPT</a>
+      </div>
+    );
+  }
+
+  if (access === "forbidden") {
+    return <div className="projects-state protected-state"><div className="state-icon">!</div><h1>Acesso restrito à equipe DS</h1><p>Use uma conta ChatGPT associada ao e-mail corporativo @ds-miami.com.</p></div>;
+  }
+
+  if (access === "error") {
+    return <div className="projects-state protected-state"><div className="state-icon">↻</div><h1>Não foi possível carregar os projetos</h1><button className="button primary" onClick={loadProjects}>Tentar novamente</button></div>;
+  }
+
+  return (
+    <>
+      <div className="projects-header">
+        <div><div className="eyebrow">PORTFÓLIO DE PROJETOS</div><h1>Projetos e timelines</h1><p>Um histórico contínuo de documentos, revisões, correções e aprovações.</p></div>
+        <div className="projects-user"><span>Conectada como</span><strong>{userEmail}</strong></div>
+        <button className="button primary" onClick={() => setShowCreate(true)}>＋ Criar projeto</button>
+      </div>
+
+      {message && <div className="project-message" role="status">✓ {message}<button onClick={() => setMessage("")}>×</button></div>}
+
+      {projects.length === 0 ? (
+        <div className="empty-projects">
+          <div className="empty-folder">＋</div>
+          <h2>Crie o primeiro projeto</h2>
+          <p>Por exemplo: <b>Hibiscus</b>. A partir daí, todo PP, shop drawing, revisão e correção ficará registrado na mesma timeline.</p>
+          <button className="button primary" onClick={() => setShowCreate(true)}>Criar projeto</button>
+        </div>
+      ) : (
+        <div className="projects-layout">
+          <aside className="project-list-panel">
+            <div className="panel-label">{projects.length} PROJETO{projects.length === 1 ? "" : "S"}</div>
+            <div className="project-search">⌕ <input placeholder="Buscar projeto…" aria-label="Buscar projeto" /></div>
+            <div className="project-card-list">
+              {projects.map((project) => (
+                <button className={`project-card ${activeProject?.id === project.id ? "active" : ""}`} key={project.id} onClick={() => setActiveId(project.id)}>
+                  <span className="project-avatar">{project.name.slice(0, 2).toUpperCase()}</span>
+                  <span><strong>{project.name}</strong><small>{project.code || "Sem código"} · {project.projectType}</small></span>
+                  <em>{project.events.length}</em>
+                </button>
+              ))}
+            </div>
+          </aside>
+
+          {activeProject && (
+            <section className="timeline-panel">
+              <div className="timeline-head">
+                <div><span>PROJETO ATIVO</span><h2>{activeProject.name}</h2><p>{activeProject.code || "Sem código"} · {activeProject.projectType} · {activeProject.status}</p></div>
+                <div className="timeline-actions">
+                  <button className="button compare-button" onClick={openComparison}>⇄ Comparar revisões</button>
+                  <button className="button secondary" onClick={() => setShowEvent(true)}>＋ Adicionar à timeline</button>
+                </div>
+              </div>
+              <div className="timeline-stats">
+                <div><b>{activeProject.events.length}</b><span>registros</span></div>
+                <div><b>{new Set(activeProject.events.map((item) => item.revision).filter(Boolean)).size}</b><span>revisões</span></div>
+                <div><b>{activeProject.events.filter((item) => item.documentType === "Project Package").length}</b><span>project packages</span></div>
+                <div><b>{activeProject.events.filter((item) => item.status === "Aprovado").length}</b><span>aprovados</span></div>
+              </div>
+              <div className="timeline">
+                {activeProject.events.map((item) => (
+                  <article className="timeline-item" key={item.id}>
+                    <div className={`timeline-dot ${item.status === "Aprovado" ? "approved" : ""}`}>{item.documentType === "Project Package" ? "PP" : item.documentType.slice(0, 2).toUpperCase()}</div>
+                    <div className="timeline-content">
+                      <div className="timeline-meta"><span>{item.documentType}</span>{item.revision && <b>{item.revision}</b>}<em>{item.status}</em><time>{new Date(item.createdAt.replace(" ", "T") + "Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</time></div>
+                      <h3>{item.title}</h3>
+                      {item.notes && <p>{item.notes}</p>}
+                      <small>Registrado por {item.createdByEmail}</small>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+
+      {showCreate && (
+        <div className="modal-backdrop" onMouseDown={() => setShowCreate(false)}>
+          <form className="modal project-form" onSubmit={createProject} onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="close" onClick={() => setShowCreate(false)}>×</button>
+            <span className="modal-kicker">NOVO PROJETO DS</span><h2>Criar projeto</h2><p>O projeto receberá uma timeline própria para acompanhar todo o ciclo de documentação e correções.</p>
+            <label className="field-label">Nome do projeto *</label><input required value={projectForm.name} onChange={(event) => setProjectForm({ ...projectForm, name: event.target.value })} placeholder="Ex.: Hibiscus" autoFocus />
+            <div className="form-grid"><label><span>Código</span><input value={projectForm.code} onChange={(event) => setProjectForm({ ...projectForm, code: event.target.value })} placeholder="Ex.: HIB RES" /></label><label><span>Tipo</span><select value={projectForm.projectType} onChange={(event) => setProjectForm({ ...projectForm, projectType: event.target.value })}><option>Residential</option><option>Commercial</option><option>Hospitality</option><option>Other</option></select></label></div>
+            <button className="button primary full" disabled={busy || !projectForm.name.trim()}>{busy ? "Criando…" : "Criar projeto e iniciar timeline"}</button>
+          </form>
+        </div>
+      )}
+
+      {showEvent && activeProject && (
+        <div className="modal-backdrop" onMouseDown={() => setShowEvent(false)}>
+          <form className="modal project-form" onSubmit={addEvent} onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="close" onClick={() => setShowEvent(false)}>×</button>
+            <span className="modal-kicker">{activeProject.name.toUpperCase()}</span><h2>Adicionar à timeline</h2><p>Registre um documento, revisão, rodada de correções ou decisão importante do projeto.</p>
+            <div className="form-grid"><label><span>Tipo de registro</span><select value={eventForm.documentType} onChange={(event) => setEventForm({ ...eventForm, documentType: event.target.value })}><option>Project Package</option><option>Shop Drawings</option><option>Material List</option><option>Budget / RFQ</option><option>Correção</option><option>Reunião / Decisão</option><option>Outro</option></select></label><label><span>Revisão</span><input value={eventForm.revision} onChange={(event) => setEventForm({ ...eventForm, revision: event.target.value })} placeholder="R00" /></label></div>
+            <label className="field-label">Descrição *</label><input required value={eventForm.title} onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })} placeholder="Ex.: Project Package revisado carregado" />
+            <label className="field-label">Status</label><select value={eventForm.status} onChange={(event) => setEventForm({ ...eventForm, status: event.target.value })}><option>Carregado</option><option>Em análise</option><option>Correções pendentes</option><option>Revisado</option><option>Aprovado</option><option>Arquivado</option></select>
+            <label className="field-label">Observações</label><textarea value={eventForm.notes} onChange={(event) => setEventForm({ ...eventForm, notes: event.target.value })} placeholder="O que mudou ou precisa ser lembrado nesta etapa?" />
+            <button className="button primary full" disabled={busy || !eventForm.title.trim()}>{busy ? "Salvando…" : "Adicionar à timeline"}</button>
+          </form>
+        </div>
+      )}
+
+      {showCompare && activeProject && (
+        <div className="modal-backdrop" onMouseDown={() => setShowCompare(false)}>
+          <section className="modal compare-modal" onMouseDown={(event) => event.stopPropagation()}>
+            <button type="button" className="close" onClick={() => setShowCompare(false)}>×</button>
+            <span className="modal-kicker">DESIGN CHANGE REPORT · {activeProject.name.toUpperCase()}</span>
+            <h2>Comparar revisões</h2>
+            <p>Este report registra mudanças de design entre duas revisões. Ele é separado do relatório de erros técnicos de QC.</p>
+
+            <div className="revision-picker">
+              <label><span>REVISÃO ANTERIOR</span><select value={compareFrom} onChange={(event) => { setCompareFrom(event.target.value); setComparisonGenerated(false); }}>
+                {[...new Set(["R03", ...revisions])].map((revision) => <option key={revision}>{revision}</option>)}
+              </select></label>
+              <div className="revision-arrow">→</div>
+              <label><span>REVISÃO ATUAL</span><select value={compareTo} onChange={(event) => { setCompareTo(event.target.value); setComparisonGenerated(false); }}>
+                {[...new Set(["R04", ...revisions])].map((revision) => <option key={revision}>{revision}</option>)}
+              </select></label>
+              <button className="button primary" disabled={compareFrom === compareTo} onClick={() => setComparisonGenerated(true)}>Gerar report de mudanças</button>
+            </div>
+
+            {revisions.length < 2 && <div className="compare-prerequisite"><b>Para a comparação automática real:</b> carregue e registre pelo menos duas revisões do Project Package na timeline deste projeto.</div>}
+
+            {comparisonGenerated && (
+              <div className="design-report-preview">
+                <div className="design-report-head">
+                  <div><span>MODELO DO REPORT FUTURO</span><strong>{compareFrom} → {compareTo}</strong></div>
+                  <div className="design-change-count"><b>1</b><span>mudança de design demonstrada</span></div>
+                </div>
+                <div className="design-vs-qc"><b>Mudança de design ≠ erro.</b> O item abaixo mostra o formato que será produzido quando a leitura automática dos PDFs estiver conectada.</div>
+                <div className="design-change-table">
+                  <div className="design-change-row header"><span>CATEGORIA</span><span>AMBIENTE</span><span>{compareFrom}</span><span>{compareTo}</span><span>QUANTIDADE</span></div>
+                  <div className="design-change-row"><strong>Wall Treatment</strong><span>Gym</span><span className="before-value">Wallpaper</span><span className="after-value">Limewash</span><b>245 SQFT</b></div>
+                </div>
+                <div className="future-report-fields">
+                  <span>✓ Localização/prancha</span><span>✓ Antes e depois</span><span>✓ Área ou quantidade</span><span>✓ Confiança da leitura</span><span>✓ Impacto na Material List</span>
+                </div>
+              </div>
+            )}
+          </section>
+        </div>
+      )}
+    </>
+  );
+}
+
+======================================================================
+FILE: app/ReportsWorkspace.tsx
+======================================================================
+
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+
+type ReportEntry = {
+  id: string;
+  projectId: string;
+  projectName: string;
+  projectCode: string;
+  documentType: string;
+  title: string;
+  revision: string;
+  status: string;
+  notes: string;
+  actorEmail: string;
+  createdAt: string;
+  isCorrection: boolean;
+  isUpload: boolean;
+};
+
+type ReportData = {
+  admin: { email: string; displayName: string };
+  summary: { projects: number; uploads: number; corrections: number; contributors: number };
+  projects: { id: string; name: string }[];
+  entries: ReportEntry[];
+};
+
+type Access = "loading" | "ready" | "signin" | "forbidden" | "error";
+
+function csvCell(value: string | number | boolean) {
+  return `"${String(value).replaceAll('"', '""')}"`;
+}
+
+export function ReportsWorkspace() {
+  const [data, setData] = useState<ReportData | null>(null);
+  const [access, setAccess] = useState<Access>("loading");
+  const [projectFilter, setProjectFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState<"all" | "uploads" | "corrections">("all");
+  const [personFilter, setPersonFilter] = useState("all");
+
+  async function loadReport() {
+    setAccess("loading");
+    try {
+      const response = await fetch("/api/reports", { cache: "no-store" });
+      if (response.status === 401) return setAccess("signin");
+      if (response.status === 403) return setAccess("forbidden");
+      if (!response.ok) throw new Error("report failed");
+      setData(await response.json() as ReportData);
+      setAccess("ready");
+    } catch {
+      setAccess("error");
+    }
+  }
+
+  useEffect(() => { void loadReport(); }, []);
+
+  const people = useMemo(() => Array.from(new Set(data?.entries.map((entry) => entry.actorEmail) ?? [])).sort(), [data]);
+  const filtered = useMemo(() => (data?.entries ?? []).filter((entry) => {
+    if (projectFilter !== "all" && entry.projectId !== projectFilter) return false;
+    if (personFilter !== "all" && entry.actorEmail !== personFilter) return false;
+    if (typeFilter === "uploads" && !entry.isUpload) return false;
+    if (typeFilter === "corrections" && !entry.isCorrection) return false;
+    return true;
+  }), [data, personFilter, projectFilter, typeFilter]);
+
+  function exportCsv() {
+    const header = ["Projeto", "Código", "Tipo", "Descrição", "Revisão", "Status", "Registrado por", "Data", "Correção solicitada", "Observações"];
+    const rows = filtered.map((entry) => [entry.projectName, entry.projectCode, entry.documentType, entry.title, entry.revision, entry.status, entry.actorEmail, entry.createdAt, entry.isCorrection ? "Sim" : "Não", entry.notes]);
+    const csv = `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(";")).join("\r\n")}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `DS-Project-QC-Report-${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (access === "loading") return <div className="projects-state"><div className="loading-ring"/><strong>Gerando report administrativo…</strong></div>;
+  if (access === "signin") return <div className="projects-state protected-state"><div className="state-icon">◉</div><span>REPORT CONFIDENCIAL</span><h1>Entre para acessar</h1><p>Este report contém atividades identificadas por pessoa e é exclusivo da administração.</p><a className="button primary signin-button" href="/signin-with-chatgpt?return_to=%2F">Entrar com ChatGPT</a></div>;
+  if (access === "forbidden") return <div className="projects-state protected-state"><div className="state-icon">🔒</div><span>ACESSO ADMINISTRATIVO</span><h1>Report exclusivo para Stefany</h1><p>Sua equipe pode registrar atividades, mas somente a conta administradora consegue visualizar o relatório consolidado.</p></div>;
+  if (access === "error" || !data) return <div className="projects-state protected-state"><div className="state-icon">↻</div><h1>Não foi possível gerar o report</h1><button className="button primary" onClick={loadReport}>Tentar novamente</button></div>;
+
+  return (
+    <>
+      <div className="reports-header">
+        <div><div className="eyebrow">REPORT ADMINISTRATIVO</div><h1>Atividade da equipe</h1><p>Quem carregou o quê, em qual projeto, e quais correções foram solicitadas.</p></div>
+        <div className="reports-owner"><span>VISÍVEL SOMENTE PARA</span><strong>{data.admin.email}</strong></div>
+        <button className="button primary" onClick={exportCsv}>⇩ Exportar Excel / CSV</button>
+      </div>
+
+      <div className="report-summary">
+        <div><span className="report-stat-icon">▣</span><b>{data.summary.projects}</b><small>Projetos</small></div>
+        <div><span className="report-stat-icon upload">↑</span><b>{data.summary.uploads}</b><small>Documentos carregados</small></div>
+        <div><span className="report-stat-icon correction">!</span><b>{data.summary.corrections}</b><small>Correções solicitadas</small></div>
+        <div><span className="report-stat-icon people">●</span><b>{data.summary.contributors}</b><small>Pessoas ativas</small></div>
+      </div>
+
+      <section className="report-panel">
+        <div className="report-tools">
+          <div><span>FILTRAR PROJETO</span><select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}><option value="all">Todos os projetos</option>{data.projects.map((project) => <option value={project.id} key={project.id}>{project.name}</option>)}</select></div>
+          <div><span>TIPO DE ATIVIDADE</span><select value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}><option value="all">Todas as atividades</option><option value="uploads">Documentos carregados</option><option value="corrections">Correções solicitadas</option></select></div>
+          <div><span>PESSOA</span><select value={personFilter} onChange={(event) => setPersonFilter(event.target.value)}><option value="all">Toda a equipe</option>{people.map((email) => <option value={email} key={email}>{email}</option>)}</select></div>
+          <button onClick={() => { setProjectFilter("all"); setTypeFilter("all"); setPersonFilter("all"); }}>Limpar filtros</button>
+        </div>
+
+        <div className="report-count"><strong>{filtered.length}</strong> registros encontrados</div>
+        <div className="report-table-wrap">
+          <table className="report-table">
+            <thead><tr><th>DATA</th><th>PROJETO</th><th>ATIVIDADE</th><th>REVISÃO</th><th>STATUS</th><th>QUEM REGISTROU</th></tr></thead>
+            <tbody>
+              {filtered.map((entry) => (
+                <tr key={entry.id} className={entry.isCorrection ? "correction-row" : ""}>
+                  <td><time>{new Date(entry.createdAt.replace(" ", "T") + "Z").toLocaleDateString("pt-BR")}</time></td>
+                  <td><strong>{entry.projectName}</strong><small>{entry.projectCode}</small></td>
+                  <td><span className={`activity-badge ${entry.isCorrection ? "correction" : entry.isUpload ? "upload" : ""}`}>{entry.isCorrection ? "Correção" : entry.documentType}</span><strong>{entry.title}</strong>{entry.notes && <small>{entry.notes}</small>}</td>
+                  <td><b className="revision-badge">{entry.revision || "—"}</b></td>
+                  <td><span className="report-status">{entry.status}</span></td>
+                  <td><strong>{entry.actorEmail.split("@")[0]}</strong><small>{entry.actorEmail}</small></td>
+                </tr>
+              ))}
+              {filtered.length === 0 && <tr><td colSpan={6} className="no-report-data">Nenhum registro corresponde aos filtros selecionados.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div className="report-note"><b>Rastreabilidade:</b> todo novo registro de timeline guarda automaticamente o e-mail da pessoa, projeto, revisão, status e horário. Correções são destacadas e entram no report administrativo.</div>
+    </>
+  );
+}
+
+======================================================================
+FILE: app/layout.tsx
+======================================================================
+
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import { headers } from "next/headers";
+import "./globals.css";
+
+const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
+
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const host = requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "localhost:3000";
+  const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
+  const imageUrl = `${protocol}://${host}/og.png`;
+
+  return {
+    title: "DS Project QC",
+    description: "Controle técnico de project packages e shop drawings da Design Solution.",
+    icons: { icon: "/favicon.svg", shortcut: "/favicon.svg" },
+    openGraph: {
+      title: "DS Project QC",
+      description: "Desenhos técnicos consistentes, revisão por revisão.",
+      images: [{ url: imageUrl, width: 1732, height: 907, alt: "Interface DS Project QC" }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: "DS Project QC",
+      description: "Desenhos técnicos consistentes, revisão por revisão.",
+      images: [imageUrl],
+    },
+  };
+}
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="pt-BR">
+      <body className={`${geistSans.variable} ${geistMono.variable}`}>{children}</body>
+    </html>
+  );
+}
+
+======================================================================
+FILE: app/globals.css
+======================================================================
+
+@import "tailwindcss";
+
+:root {
+  --ink: #24322f;
+  --muted: #73807d;
+  --line: #dfe5e2;
+  --paper: #f7f8f6;
+  --white: #ffffff;
+  --green: #2d5b50;
+  --green-dark: #173d35;
+  --mint: #e3eee9;
+  --red: #b7473d;
+  --red-soft: #f7e7e4;
+  --amber: #b97924;
+  --amber-soft: #faf0dc;
+  --shadow: 0 14px 40px rgba(31, 53, 46, .09);
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); }
+body { font-family: var(--font-geist-sans), Arial, sans-serif; }
+button, select, textarea, input { font: inherit; }
+button { cursor: pointer; }
+.visually-hidden { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; white-space: nowrap !important; border: 0 !important; }
+
+.app-shell { min-height: 100vh; display: grid; grid-template: 72px 1fr / 230px 1fr; }
+.topbar { grid-column: 1 / -1; display: flex; align-items: center; gap: 12px; padding: 0 24px; background: var(--white); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 20; }
+.brand-mark { width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; background: var(--green-dark); color: white; font-weight: 750; letter-spacing: -.5px; }
+.brand-copy { display: flex; flex-direction: column; line-height: 1.1; min-width: 230px; }
+.brand-copy strong { font-size: 14px; letter-spacing: .1em; }
+.brand-copy span { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.workflow { flex: 1; display: flex; justify-content: center; align-items: center; }
+.workflow-step { color: #9aa4a1; text-transform: uppercase; font-size: 10px; letter-spacing: .1em; font-weight: 700; display: flex; align-items: center; }
+.workflow-step:not(:last-child)::after { content: ""; width: 50px; border-top: 1px solid #cfd7d3; margin: 0 14px; }
+.workflow-step span { width: 25px; height: 25px; border-radius: 50%; border: 1px solid #c7cfcc; display: grid; place-items: center; margin-right: 7px; font-size: 10px; }
+.workflow-step.is-active { color: var(--green-dark); }
+.workflow-step.is-active span { color: white; background: var(--green); border-color: var(--green); box-shadow: 0 0 0 5px var(--mint); }
+.profile { width: 38px; height: 38px; border: 0; border-radius: 50%; background: #d8c7af; color: #483e32; font-weight: 750; }
+
+.sidebar { grid-row: 2; background: var(--green-dark); color: white; padding: 22px 15px; display: flex; flex-direction: column; min-height: calc(100vh - 72px); position: sticky; top: 72px; height: calc(100vh - 72px); }
+.project-switcher { padding: 12px 12px 18px; border-bottom: 1px solid rgba(255,255,255,.14); display: flex; flex-direction: column; }
+.project-switcher span, .sidebar-note span { font-size: 9px; letter-spacing: .14em; color: #9fc0b6; font-weight: 700; }
+.project-switcher strong { font-size: 14px; margin-top: 8px; }
+.project-switcher small { color: #aebebb; margin-top: 4px; }
+nav { margin-top: 20px; display: grid; gap: 4px; }
+nav button { position: relative; display: flex; align-items: center; width: 100%; gap: 11px; color: #b9cbc6; border: 0; background: transparent; border-radius: 8px; padding: 11px 12px; text-align: left; font-size: 13px; }
+nav button:hover { background: rgba(255,255,255,.06); color: white; }
+nav button.active { background: rgba(255,255,255,.12); color: white; font-weight: 650; }
+.nav-icon { width: 18px; text-align: center; font-size: 16px; }
+nav em { margin-left: auto; background: var(--red); color: white; min-width: 22px; height: 20px; padding: 0 6px; border-radius: 10px; font-size: 10px; font-style: normal; display: grid; place-items: center; }
+.sidebar-note { margin-top: auto; padding: 14px 12px; border: 1px solid rgba(255,255,255,.14); border-radius: 9px; display: flex; flex-direction: column; }
+.sidebar-note strong { font-size: 12px; margin: 7px 0 4px; }
+.sidebar-note small { color: #9fb3ad; font-size: 10px; }
+
+.workspace { grid-column: 2; padding: 27px 30px 34px; min-width: 0; }
+.project-head { display: flex; justify-content: space-between; gap: 30px; align-items: flex-end; margin-bottom: 20px; }
+.eyebrow { font-size: 10px; font-weight: 750; letter-spacing: .14em; color: var(--green); }
+h1 { font-size: 28px; line-height: 1.1; letter-spacing: -.04em; margin: 7px 0 5px; }
+.project-head p { margin: 0; color: var(--muted); font-size: 13px; }
+.head-actions { display: flex; gap: 9px; }
+.button { border-radius: 8px; padding: 11px 15px; font-size: 12px; font-weight: 650; border: 1px solid var(--line); }
+.button.primary { background: var(--green); color: white; border-color: var(--green); }
+.button.primary:hover { background: var(--green-dark); }
+.button.secondary { background: white; color: var(--ink); }
+.button:disabled { opacity: .45; cursor: not-allowed; }
+.button.full { width: 100%; padding: 13px; margin-top: 16px; }
+.upload-project { min-width: 210px; }
+.uploaded-project { margin: -5px 0 15px; min-height: 54px; padding: 9px 12px; border: 1px solid #b9d0c7; border-radius: 9px; background: #f1f8f5; display: flex; align-items: center; gap: 10px; }
+.uploaded-project > span { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--green); color: white; font-size: 12px; font-weight: 800; }
+.uploaded-project > div { flex: 1; display: flex; flex-direction: column; }
+.uploaded-project strong { font-size: 11px; }
+.uploaded-project small { margin-top: 2px; color: var(--muted); font-size: 9px; }
+.uploaded-project button { border: 0; background: transparent; color: var(--green); font-size: 9px; font-weight: 750; }
+
+.check-group { background: white; border: 1px solid var(--line); box-shadow: 0 5px 18px rgba(35,58,50,.04); border-radius: 11px; padding: 12px 16px; display: flex; align-items: center; gap: 22px; margin-bottom: 15px; }
+.check-group > div:first-child { display: flex; flex-direction: column; min-width: 210px; }
+.group-label { color: var(--muted); font-size: 9px; letter-spacing: .12em; font-weight: 750; }
+.check-group strong { font-size: 13px; margin-top: 3px; }
+.sheet-chips { display: flex; gap: 7px; flex: 1; }
+.sheet-chips span { border-radius: 14px; font-size: 9px; letter-spacing: .05em; padding: 6px 9px; font-weight: 750; }
+.chip-ok { background: var(--mint); color: var(--green); }
+.chip-warn { background: var(--amber-soft); color: var(--amber); }
+.group-progress { display: flex; flex-direction: column; align-items: flex-end; min-width: 90px; }
+.group-progress b { font-size: 17px; }
+.group-progress span { font-size: 9px; color: var(--muted); }
+
+.content-grid { display: grid; grid-template-columns: minmax(560px, 1fr) 385px; gap: 15px; align-items: start; }
+.viewer-panel, .findings-panel { border: 1px solid var(--line); border-radius: 11px; background: white; overflow: hidden; box-shadow: var(--shadow); }
+.viewer-toolbar { height: 48px; padding: 0 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+.sheet-tabs { display: flex; gap: 5px; }
+.sheet-tabs button, .zoom-controls button { border: 0; background: transparent; color: var(--muted); font-size: 10px; font-weight: 700; padding: 7px 9px; border-radius: 6px; }
+.sheet-tabs button.selected { background: var(--green-dark); color: white; }
+.zoom-controls { display: flex; align-items: center; gap: 5px; color: var(--muted); font-size: 10px; }
+.zoom-controls button { background: #f1f3f1; color: var(--ink); }
+.plan-canvas { height: 445px; position: relative; overflow: hidden; background-color: #f9faf7; background-image: linear-gradient(rgba(44,82,71,.04) 1px, transparent 1px), linear-gradient(90deg, rgba(44,82,71,.04) 1px, transparent 1px); background-size: 18px 18px; }
+.drawing-title { position: absolute; top: 16px; left: 18px; font-family: var(--font-geist-mono); font-size: 9px; letter-spacing: .12em; color: #70807a; }
+.room { position: absolute; border: 2px solid #80938c; color: #5f716b; background: rgba(255,255,255,.35); }
+.room::before, .room::after { content: ""; position: absolute; background: #b2beb9; }
+.room::before { width: 1px; height: 100%; left: 50%; }
+.room::after { height: 1px; width: 100%; top: 50%; }
+.room span { position: absolute; z-index: 1; background: #f9faf7; padding: 5px 7px; text-align: center; font: 8px/1.45 var(--font-geist-mono); top: 50%; left: 50%; transform: translate(-50%,-50%); }
+.room-a { left: 8%; top: 13%; width: 42%; height: 41%; }
+.room-b { left: 50%; top: 13%; width: 31%; height: 32%; }
+.room-c { left: 16%; top: 54%; width: 45%; height: 34%; }
+.room-d { left: 61%; top: 45%; width: 20%; height: 43%; }
+.pin { position: absolute; transform: translate(-50%,-50%); z-index: 5; width: 28px; height: 28px; border: 3px solid white; border-radius: 50% 50% 50% 10%; rotate: -45deg; background: var(--red); color: white; font-size: 10px; font-weight: 800; box-shadow: 0 3px 9px rgba(96,33,28,.28); }
+.pin:hover, .pin.active { width: 34px; height: 34px; background: #91352e; }
+.pin::first-letter { rotate: 45deg; }
+.north { position: absolute; right: 6%; bottom: 11%; text-align: center; font: 10px/1.2 var(--font-geist-mono); }
+.scale { position: absolute; right: 3%; bottom: 3%; font: 8px var(--font-geist-mono); color: var(--muted); }
+
+.comparison-card { border-top: 1px solid var(--line); }
+.comparison-title { display: flex; justify-content: space-between; align-items: center; padding: 13px 15px; background: #f4f6f4; }
+.comparison-title span { font-size: 9px; letter-spacing: .09em; color: var(--muted); font-weight: 750; }
+.comparison-title strong { font-size: 11px; }
+.comparison-row { display: grid; grid-template-columns: 1.5fr .7fr .8fr 1fr; padding: 9px 15px; border-top: 1px solid #edf0ee; align-items: center; font-size: 10px; }
+.comparison-row.header { color: var(--muted); font-size: 8px; letter-spacing: .08em; font-weight: 750; }
+.comparison-row b:last-child { color: var(--red); text-align: right; }
+.comparison-row b.match { color: #3d806e; }
+.comparison-row.mismatch { background: #fff6f4; border-left: 3px solid var(--red); }
+
+.findings-panel { max-height: 710px; display: flex; flex-direction: column; }
+.findings-summary { display: grid; grid-template-columns: repeat(3,1fr); border-bottom: 1px solid var(--line); }
+.findings-summary button { padding: 12px 9px; text-align: center; display: flex; flex-direction: column; border: 0; background: white; color: var(--ink); }
+.findings-summary button:not(:last-child) { border-right: 1px solid var(--line); }
+.findings-summary button:hover, .findings-summary button:focus-visible { background: #eef5f2; outline: none; }
+.findings-summary b { font-size: 20px; line-height: 1; }
+.findings-summary span { font-size: 8px; margin-top: 5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.findings-head { padding: 13px 14px; display: flex; align-items: center; justify-content: space-between; background: #f6f7f5; border-bottom: 1px solid var(--line); }
+.findings-head div { display: flex; flex-direction: column; }
+.findings-head span { font-size: 8px; color: var(--muted); letter-spacing: .1em; font-weight: 750; }
+.findings-head strong { font-size: 12px; margin-top: 2px; }
+.findings-head select { border: 1px solid var(--line); background: white; border-radius: 6px; padding: 6px 7px; font-size: 9px; color: var(--ink); }
+.clear-group { margin-left: auto; margin-right: 7px; padding: 5px 7px; border: 1px solid #a9c1b7; border-radius: 6px; background: #e9f3ef; color: var(--green); font-size: 8px; font-weight: 750; }
+.findings-list { overflow-y: auto; flex: 1; }
+.finding-card { display: flex; gap: 10px; padding: 13px; border-bottom: 1px solid var(--line); cursor: pointer; position: relative; }
+.finding-card:hover { background: #fafbf9; }
+.finding-card.selected { background: #fffafa; box-shadow: inset 3px 0 var(--red); }
+.finding-number { flex: 0 0 25px; height: 25px; border-radius: 50%; display: grid; place-items: center; background: var(--red-soft); color: var(--red); font-size: 10px; font-weight: 800; }
+.finding-content { min-width: 0; flex: 1; }
+.badges { display: flex; gap: 5px; margin-bottom: 6px; }
+.badges span { font-size: 7px; letter-spacing: .06em; font-weight: 750; text-transform: uppercase; border-radius: 4px; padding: 3px 5px; background: #edf0ee; color: #6c7774; }
+.badges span.high { color: var(--red); background: var(--red-soft); }
+.badges span.medium { color: var(--amber); background: var(--amber-soft); }
+.badges span.code-badge { color: var(--green); background: var(--mint); }
+.finding-card h3 { margin: 0 0 4px; font-size: 12px; line-height: 1.28; }
+.finding-card > .finding-content > p { font-size: 9px; color: var(--muted); margin: 0; }
+.finding-detail { margin-top: 11px; padding-top: 10px; border-top: 1px dashed #d8deda; }
+.finding-detail p { margin: 0 0 7px; font-size: 9px; line-height: 1.45; color: #596562; }
+.finding-detail b { color: var(--ink); }
+.finding-locations { margin: 9px 0 10px; padding: 9px 10px; border: 1px solid #d9e4df; border-radius: 6px; background: #f6faf8; color: #53635e; font-size: 8px; line-height: 1.5; }
+.finding-locations ul, .evidence-locations ul { margin: 6px 0 0; padding-left: 16px; }
+.finding-locations li, .evidence-locations li { margin-bottom: 4px; }
+.card-code-reference { margin: 8px 0 10px; padding: 9px 10px; border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; background: #edf6f2; color: #4c5e58; font-size: 8px; line-height: 1.5; }
+.card-code-reference a, .code-reference a { display: inline-block; margin-left: 4px; color: var(--green); font-weight: 800; text-decoration: underline; text-underline-offset: 2px; }
+.card-actions { display: flex; gap: 6px; margin-top: 10px; }
+.card-actions button { flex: 1; border-radius: 6px; padding: 8px 6px; font-size: 9px; font-weight: 750; }
+.card-actions .correct { border: 1px solid var(--green); color: var(--green); background: white; }
+.card-actions .correct:hover { color: white; background: var(--green); }
+.card-actions .na { border: 1px solid #c7cecb; color: #68736f; background: white; }
+.status { display: inline-block; margin-top: 7px; border-radius: 10px; padding: 3px 7px; font-size: 8px; font-weight: 750; text-transform: uppercase; }
+.status.done { color: var(--green); background: var(--mint); }
+.status.na-status { color: #6c6a62; background: #efeee9; }
+.manual-button { margin: 11px; border: 1px dashed #99aaa4; border-radius: 7px; background: #f8faf8; color: var(--green); padding: 10px; font-size: 9px; font-weight: 700; }
+
+.bottom-gate { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 13px; margin-top: 15px; padding: 15px 17px; border: 1px solid var(--line); border-radius: 10px; background: white; box-shadow: 0 7px 20px rgba(35,58,50,.04); }
+.gate-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--green); font-size: 20px; }
+.bottom-gate > div:nth-child(2) { display: flex; flex-direction: column; }
+.bottom-gate strong { font-size: 12px; }
+.bottom-gate span { color: var(--muted); font-size: 9px; margin-top: 3px; }
+.gate-status { text-align: right; display: flex; flex-direction: column; padding-right: 7px; }
+.gate-status b { color: var(--red); }
+
+.modal-backdrop, .drawer-backdrop { position: fixed; inset: 0; background: rgba(17,35,30,.48); z-index: 50; display: grid; place-items: center; backdrop-filter: blur(2px); }
+.modal { width: min(500px, calc(100vw - 30px)); background: white; border-radius: 14px; padding: 27px; box-shadow: 0 30px 80px rgba(12,30,24,.28); position: relative; }
+.close { position: absolute; right: 14px; top: 12px; border: 0; background: transparent; color: var(--muted); font-size: 24px; }
+.modal-kicker { font-size: 9px; letter-spacing: .12em; font-weight: 800; color: var(--green); }
+.modal h2, .drawer h2 { margin: 7px 0 6px; font-size: 22px; letter-spacing: -.03em; }
+.modal > p, .drawer > p { margin: 0 0 15px; color: var(--muted); font-size: 11px; line-height: 1.5; }
+textarea { width: 100%; min-height: 105px; resize: vertical; border: 1px solid #cfd7d3; border-radius: 8px; padding: 12px; outline: none; font-size: 11px; line-height: 1.5; }
+textarea:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--mint); }
+fieldset { border: 0; padding: 13px 0 0; display: grid; gap: 8px; }
+legend, .field-label { font-size: 10px; font-weight: 750; margin-bottom: 7px; }
+fieldset label { font-size: 10px; color: #52605c; display: flex; gap: 8px; align-items: center; }
+fieldset input { accent-color: var(--green); }
+.rule-notice, .drawer-note { margin-top: 13px; padding: 10px 11px; background: var(--amber-soft); border-radius: 7px; color: #72511d; font-size: 9px; line-height: 1.45; }
+.drawer-backdrop { place-items: stretch end; }
+.drawer { width: min(465px, 100vw); height: 100%; background: white; padding: 34px 27px; box-shadow: -20px 0 60px rgba(12,30,24,.2); position: relative; animation: slide-in .2s ease-out; }
+@keyframes slide-in { from { translate: 100% 0; } to { translate: 0 0; } }
+.field-label { display: block; margin-top: 17px; }
+.dropzone { width: 100%; min-height: 112px; border: 1px dashed #9dafaa; background: #f7faf8; border-radius: 9px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; color: var(--green); }
+.dropzone span { font-size: 22px; }
+.dropzone strong { font-size: 10px; }
+.dropzone small { color: var(--muted); font-size: 8px; }
+.toast { position: fixed; right: 24px; bottom: 24px; z-index: 100; background: var(--green-dark); color: white; padding: 13px 17px; border-radius: 9px; box-shadow: var(--shadow); font-size: 11px; animation: toast-in .2s ease-out; }
+@keyframes toast-in { from { opacity: 0; translate: 0 10px; } }
+
+.review-source { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; }
+.review-source span { color: var(--muted); font-size: 7px; font-weight: 800; letter-spacing: .1em; }
+.review-source strong { margin-top: 3px; font-size: 9px; }
+.qc-dashboard { padding: 18px; background: linear-gradient(145deg, #f7faf8, #eef4f1); border-bottom: 1px solid var(--line); }
+.coverage-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 12px; }
+.coverage-head span { color: var(--green); font-size: 8px; font-weight: 850; letter-spacing: .11em; }
+.coverage-head strong { font-size: 10px; }
+.coverage-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; }
+.coverage-item { min-height: 78px; padding: 10px; border: 1px solid #d9e3df; border-radius: 8px; background: white; color: var(--ink); text-align: left; display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-content: start; box-shadow: 0 3px 10px rgba(34,57,49,.035); transition: border-color .16s ease, box-shadow .16s ease, translate .16s ease; }
+.coverage-item:hover, .coverage-item:focus-visible { border-color: #7ea99a; box-shadow: 0 7px 18px rgba(34,57,49,.1); translate: 0 -1px; outline: none; }
+.coverage-item.active { border-color: var(--green); box-shadow: 0 0 0 2px var(--mint); background: #f8fcfa; }
+.coverage-item b { grid-row: 1 / 3; min-width: 40px; height: 25px; display: grid; place-items: center; border-radius: 5px; background: var(--mint); color: var(--green); font-size: 8px; }
+.coverage-item span { font-size: 9px; font-weight: 750; line-height: 1.3; }
+.coverage-item em { margin-top: 4px; color: var(--muted); font-size: 7px; font-style: normal; }
+.coverage-item i { grid-column: 2; margin-top: 7px; color: var(--green); font-size: 7px; font-style: normal; font-weight: 800; opacity: .72; }
+.selected-evidence { margin-top: 14px; display: grid; grid-template-columns: 42px minmax(170px, .9fr) 1.4fr; gap: 13px; align-items: center; padding: 14px; border: 1px solid #d0ddd8; border-radius: 9px; background: white; box-shadow: 0 6px 18px rgba(34,57,49,.055); }
+.evidence-number { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: var(--red); color: white; font-size: 13px; font-weight: 850; }
+.selected-evidence span { color: var(--red); font-size: 7px; font-weight: 850; letter-spacing: .08em; }
+.selected-evidence h2 { margin: 4px 0 3px; font-size: 14px; line-height: 1.2; }
+.selected-evidence > div > p { margin: 0; color: var(--muted); font-size: 8px; }
+.evidence-text { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.evidence-text.has-code { grid-template-columns: 1fr 1fr; }
+.evidence-text p { margin: 0; color: #5d6966; font-size: 8px; line-height: 1.45; }
+.evidence-text b { display: block; margin-bottom: 3px; color: var(--ink); font-size: 7px; text-transform: uppercase; letter-spacing: .06em; }
+.evidence-text .code-reference { grid-column: 1 / -1; padding-top: 8px; border-top: 1px solid #dce7e2; color: #4c5e58; }
+.evidence-locations { grid-column: 1 / -1; padding: 9px 10px; border-left: 3px solid var(--green); border-radius: 0 6px 6px 0; background: #f1f7f4; color: #53635e; font-size: 8px; line-height: 1.45; }
+.evidence-locations > b { color: var(--green-dark); }
+.verified-card { margin: 14px; border: 1px solid #b9d4c9; border-radius: 10px; overflow: hidden; background: #f4faf7; }
+.verified-title { display: flex; align-items: center; gap: 10px; padding: 12px 14px; border-bottom: 1px solid #cee1d9; background: #e7f3ee; }
+.verified-title > span { width: 29px; height: 29px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: white; font-weight: 900; }
+.verified-title div { display: flex; flex-direction: column; }
+.verified-title small { color: var(--green); font-size: 7px; font-weight: 850; letter-spacing: .12em; }
+.verified-title strong { margin-top: 2px; font-size: 11px; }
+.verified-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+.verified-grid div { display: flex; gap: 7px; padding: 9px 12px; color: #52625d; font-size: 8px; line-height: 1.4; border-bottom: 1px solid #e0ece7; }
+.verified-grid div:nth-child(odd) { border-right: 1px solid #e0ece7; }
+.verified-grid span { color: #42836b; font-weight: 900; }
+.badges .minor { background: #edf0ee; color: #66716e; }
+
+.projects-header { display: flex; gap: 22px; align-items: flex-end; margin-bottom: 22px; }
+.projects-header > div:first-child { flex: 1; }
+.projects-header h1 { margin-bottom: 5px; }
+.projects-header p { margin: 0; color: var(--muted); font-size: 12px; }
+.projects-user { display: flex; flex-direction: column; text-align: right; }
+.projects-user span { color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .08em; }
+.projects-user strong { margin-top: 3px; font-size: 10px; }
+.project-message { display: flex; align-items: center; gap: 8px; margin: -8px 0 15px; border: 1px solid #b9d0c7; background: #edf7f2; color: var(--green); border-radius: 8px; padding: 10px 12px; font-size: 10px; font-weight: 650; }
+.project-message button { margin-left: auto; border: 0; background: transparent; color: inherit; font-size: 16px; }
+.projects-layout { display: grid; grid-template-columns: 310px minmax(0, 1fr); gap: 15px; align-items: start; }
+.project-list-panel, .timeline-panel, .empty-projects { background: white; border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow); overflow: hidden; }
+.panel-label { padding: 15px 15px 9px; color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .1em; }
+.project-search { margin: 0 12px 10px; display: flex; align-items: center; gap: 7px; background: #f4f6f4; border: 1px solid #e4e8e5; border-radius: 7px; padding: 8px 10px; color: var(--muted); }
+.project-search input { width: 100%; border: 0; outline: 0; background: transparent; color: var(--ink); font-size: 10px; }
+.project-card-list { display: grid; max-height: 580px; overflow-y: auto; }
+.project-card { width: 100%; display: grid; grid-template-columns: 38px 1fr auto; align-items: center; gap: 10px; padding: 13px 14px; border: 0; border-top: 1px solid #edf0ee; background: white; text-align: left; color: var(--ink); }
+.project-card:hover { background: #f7faf8; }
+.project-card.active { background: #edf5f1; box-shadow: inset 3px 0 var(--green); }
+.project-avatar { width: 38px; height: 38px; border-radius: 9px; display: grid; place-items: center; background: var(--green-dark); color: white; font-size: 10px; font-weight: 800; letter-spacing: .05em; }
+.project-card > span:nth-child(2) { display: flex; flex-direction: column; min-width: 0; }
+.project-card strong { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card small { color: var(--muted); font-size: 8px; margin-top: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-card em { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; background: white; color: var(--green); font-size: 8px; font-style: normal; font-weight: 800; border: 1px solid #d5e2dd; }
+.timeline-panel { min-height: 590px; }
+.timeline-head { padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); }
+.timeline-head span { color: var(--green); font-size: 8px; letter-spacing: .1em; font-weight: 800; }
+.timeline-head h2 { margin: 5px 0 3px; font-size: 21px; letter-spacing: -.03em; }
+.timeline-head p { margin: 0; color: var(--muted); font-size: 9px; }
+.timeline-actions { display: flex; gap: 7px; }
+.button.compare-button { border-color: #9EB8AE; color: var(--green); background: #EDF5F1; }
+.button.compare-button:hover { background: var(--green); color: white; border-color: var(--green); }
+.timeline-stats { display: grid; grid-template-columns: repeat(4, 1fr); background: #f7f8f6; border-bottom: 1px solid var(--line); }
+.timeline-stats div { padding: 12px 15px; display: flex; flex-direction: column; }
+.timeline-stats div:not(:last-child) { border-right: 1px solid var(--line); }
+.timeline-stats b { font-size: 18px; }
+.timeline-stats span { margin-top: 3px; color: var(--muted); font-size: 8px; text-transform: uppercase; letter-spacing: .05em; }
+.timeline { padding: 20px 22px 24px; }
+.timeline-item { display: grid; grid-template-columns: 39px 1fr; gap: 14px; position: relative; padding-bottom: 22px; }
+.timeline-item:not(:last-child)::before { content: ""; position: absolute; left: 19px; top: 38px; bottom: 0; border-left: 1px solid #d2dbd7; }
+.timeline-dot { position: relative; z-index: 1; width: 39px; height: 39px; border-radius: 50%; display: grid; place-items: center; background: var(--green-dark); color: white; font-size: 8px; font-weight: 800; letter-spacing: .03em; border: 4px solid white; box-shadow: 0 0 0 1px #cbd6d2; }
+.timeline-dot.approved { background: #4b876f; }
+.timeline-content { padding: 2px 0 17px; border-bottom: 1px solid #edf0ee; }
+.timeline-meta { display: flex; align-items: center; gap: 6px; }
+.timeline-meta span, .timeline-meta b, .timeline-meta em { font-size: 7px; text-transform: uppercase; letter-spacing: .05em; font-style: normal; font-weight: 800; border-radius: 4px; padding: 3px 6px; }
+.timeline-meta span { color: var(--green); background: var(--mint); }
+.timeline-meta b { color: #596562; background: #edf0ee; }
+.timeline-meta em { color: var(--amber); background: var(--amber-soft); }
+.timeline-meta time { margin-left: auto; color: var(--muted); font-size: 8px; }
+.timeline-content h3 { margin: 8px 0 4px; font-size: 12px; }
+.timeline-content p { margin: 0 0 6px; color: #5c6865; font-size: 9px; line-height: 1.5; }
+.timeline-content small { color: #929c99; font-size: 8px; }
+.empty-projects { min-height: 500px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 50px; }
+.empty-folder { width: 64px; height: 64px; border-radius: 16px; display: grid; place-items: center; background: var(--mint); color: var(--green); font-size: 28px; }
+.empty-projects h2 { margin: 17px 0 7px; font-size: 21px; }
+.empty-projects p { max-width: 460px; margin: 0 0 18px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.projects-state { min-height: 560px; display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--muted); }
+.loading-ring { width: 28px; height: 28px; border: 3px solid #dbe4e0; border-top-color: var(--green); border-radius: 50%; animation: spin .8s linear infinite; }
+@keyframes spin { to { rotate: 360deg; } }
+.protected-state { flex-direction: column; text-align: center; background: white; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); padding: 50px; }
+.protected-state .state-icon { width: 55px; height: 55px; display: grid; place-items: center; border-radius: 50%; background: var(--mint); color: var(--green); font-size: 20px; }
+.protected-state > span { color: var(--green); font-size: 8px; letter-spacing: .12em; font-weight: 800; margin-top: 6px; }
+.protected-state h1 { margin: 5px 0; }
+.protected-state p { max-width: 480px; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.signin-button { display: inline-block; text-decoration: none; margin-top: 12px; }
+.project-form input, .project-form select { width: 100%; height: 40px; border: 1px solid #cfd7d3; background: white; border-radius: 7px; padding: 0 10px; outline: none; color: var(--ink); font-size: 10px; }
+.project-form input:focus, .project-form select:focus { border-color: var(--green); box-shadow: 0 0 0 3px var(--mint); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px; }
+.form-grid label { display: flex; flex-direction: column; gap: 6px; }
+.form-grid label span { font-size: 9px; font-weight: 750; }
+.project-form > select { margin-top: 0; }
+.compare-modal { width: min(840px, calc(100vw - 30px)); max-height: calc(100vh - 34px); overflow-y: auto; }
+.revision-picker { display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: end; gap: 11px; padding: 15px; border-radius: 9px; background: #F4F7F5; border: 1px solid var(--line); }
+.revision-picker label { display: flex; flex-direction: column; gap: 6px; }
+.revision-picker label span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: .08em; }
+.revision-picker select { height: 39px; min-width: 130px; padding: 0 10px; border: 1px solid #C8D3CF; border-radius: 7px; background: white; color: var(--ink); font-size: 11px; font-weight: 700; }
+.revision-arrow { height: 39px; display: grid; place-items: center; color: var(--green); font-size: 20px; }
+.compare-prerequisite { margin-top: 11px; padding: 11px 12px; border-radius: 7px; background: var(--amber-soft); color: #72511D; font-size: 9px; line-height: 1.45; }
+.design-report-preview { margin-top: 16px; border: 1px solid #CBD8D3; border-radius: 10px; overflow: hidden; }
+.design-report-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: var(--green-dark); color: white; }
+.design-report-head > div:first-child { display: flex; flex-direction: column; }
+.design-report-head span { color: #ACCCC1; font-size: 7px; letter-spacing: .1em; font-weight: 800; }
+.design-report-head strong { margin-top: 4px; font-size: 15px; }
+.design-change-count { display: flex; align-items: center; gap: 7px; }
+.design-change-count b { font-size: 22px; }
+.design-change-count span { max-width: 95px; line-height: 1.25; }
+.design-vs-qc { padding: 10px 14px; background: #F9F1DF; color: #70501C; font-size: 9px; line-height: 1.45; border-bottom: 1px solid #E8D8B7; }
+.design-change-row { display: grid; grid-template-columns: 1.15fr .8fr 1fr 1fr .7fr; align-items: center; gap: 10px; padding: 12px 14px; font-size: 10px; }
+.design-change-row.header { padding-block: 8px; background: #F7F8F6; color: var(--muted); font-size: 7px; font-weight: 800; letter-spacing: .06em; border-bottom: 1px solid var(--line); }
+.design-change-row > b:last-child { color: var(--green); text-align: right; }
+.before-value, .after-value { position: relative; padding: 6px 8px; border-radius: 5px; }
+.before-value { color: #7B5D50; background: #F5ECE8; text-decoration: line-through; }
+.after-value { color: var(--green); background: var(--mint); font-weight: 700; }
+.future-report-fields { display: flex; flex-wrap: wrap; gap: 7px; padding: 11px 14px; background: #FAFBFA; border-top: 1px solid var(--line); }
+.future-report-fields span { padding: 4px 7px; border-radius: 10px; background: #EDF2F0; color: #65716D; font-size: 7px; font-weight: 700; }
+
+.reports-header { display: flex; align-items: flex-end; gap: 22px; margin-bottom: 19px; }
+.reports-header > div:first-child { flex: 1; }
+.reports-header h1 { margin-bottom: 5px; }
+.reports-header p { margin: 0; color: var(--muted); font-size: 12px; }
+.reports-owner { display: flex; flex-direction: column; text-align: right; }
+.reports-owner span { color: var(--muted); font-size: 7px; letter-spacing: .08em; font-weight: 750; }
+.reports-owner strong { margin-top: 4px; font-size: 9px; }
+.report-summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 14px; }
+.report-summary > div { position: relative; min-height: 91px; padding: 17px 18px; border: 1px solid var(--line); border-radius: 10px; background: white; box-shadow: 0 5px 16px rgba(35,58,50,.04); display: flex; flex-direction: column; }
+.report-summary b { font-size: 24px; line-height: 1; }
+.report-summary small { margin-top: 6px; color: var(--muted); font-size: 9px; text-transform: uppercase; letter-spacing: .05em; }
+.report-stat-icon { position: absolute; right: 15px; top: 15px; width: 29px; height: 29px; border-radius: 8px; display: grid; place-items: center; background: var(--mint); color: var(--green); font-size: 11px; font-weight: 800; }
+.report-stat-icon.upload { background: #e9eef7; color: #4f6686; }
+.report-stat-icon.correction { background: var(--red-soft); color: var(--red); }
+.report-stat-icon.people { background: var(--amber-soft); color: var(--amber); }
+.report-panel { background: white; border: 1px solid var(--line); border-radius: 11px; box-shadow: var(--shadow); overflow: hidden; }
+.report-tools { display: grid; grid-template-columns: 1fr 1.1fr 1fr auto; gap: 10px; align-items: end; padding: 15px; background: #f7f8f6; border-bottom: 1px solid var(--line); }
+.report-tools > div { display: flex; flex-direction: column; gap: 5px; }
+.report-tools span { color: var(--muted); font-size: 7px; letter-spacing: .08em; font-weight: 800; }
+.report-tools select { height: 35px; border: 1px solid #d2d9d6; background: white; border-radius: 7px; padding: 0 9px; color: var(--ink); font-size: 9px; }
+.report-tools button { height: 35px; border: 1px solid #d2d9d6; border-radius: 7px; background: white; color: var(--green); padding: 0 11px; font-size: 8px; font-weight: 750; }
+.report-count { padding: 11px 15px; color: var(--muted); font-size: 9px; border-bottom: 1px solid var(--line); }
+.report-count strong { color: var(--ink); }
+.report-table-wrap { overflow-x: auto; }
+.report-table { width: 100%; border-collapse: collapse; min-width: 900px; }
+.report-table th { padding: 10px 12px; background: #fafbfa; color: var(--muted); font-size: 7px; letter-spacing: .08em; text-align: left; border-bottom: 1px solid var(--line); }
+.report-table td { padding: 12px; border-bottom: 1px solid #edf0ee; vertical-align: top; font-size: 9px; }
+.report-table tbody tr:hover { background: #fafbf9; }
+.report-table tr.correction-row { background: #fff9f7; box-shadow: inset 3px 0 var(--red); }
+.report-table td { color: #596562; }
+.report-table td > strong, .report-table td > small { display: block; }
+.report-table td > strong { color: var(--ink); font-size: 9px; margin-top: 4px; }
+.report-table td > small { color: var(--muted); font-size: 7px; margin-top: 3px; max-width: 260px; line-height: 1.4; }
+.report-table time { white-space: nowrap; color: var(--muted); }
+.activity-badge { display: inline-block; padding: 3px 6px; border-radius: 4px; background: #edf0ee; color: #5e6966; font-size: 7px !important; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+.activity-badge.upload { background: #e9eef7; color: #4f6686; }
+.activity-badge.correction { background: var(--red-soft); color: var(--red); }
+.revision-badge { display: inline-grid; min-width: 33px; height: 23px; place-items: center; border-radius: 5px; background: #edf0ee; color: #56625e; font-size: 8px; }
+.report-status { display: inline-block; white-space: nowrap; border-radius: 9px; padding: 4px 7px; background: var(--amber-soft); color: var(--amber); font-size: 7px; font-weight: 750; }
+.no-report-data { text-align: center; color: var(--muted); padding: 40px !important; }
+.report-note { margin-top: 13px; padding: 12px 14px; border-radius: 8px; background: #eef5f2; color: #52645e; font-size: 9px; line-height: 1.5; }
+.report-note b { color: var(--green); }
+
+@media (max-width: 1180px) {
+  .content-grid { grid-template-columns: 1fr 340px; }
+  .workflow-step:not(:last-child)::after { width: 20px; margin: 0 8px; }
+  .brand-copy { min-width: 180px; }
+}
+
+@media (max-width: 930px) {
+  .app-shell { grid-template-columns: 72px 1fr; }
+  .sidebar { padding-inline: 10px; }
+  .project-switcher, .sidebar-note, nav button:not(.active) { font-size: 0; }
+  .project-switcher strong, .project-switcher span, .project-switcher small, .sidebar-note { display: none; }
+  nav button { justify-content: center; padding-inline: 5px; }
+  .nav-icon { font-size: 18px; }
+  nav em { position: absolute; right: 3px; top: 4px; }
+  .content-grid { grid-template-columns: 1fr; }
+  .findings-panel { max-height: none; }
+  .projects-layout { grid-template-columns: 1fr; }
+  .project-card-list { max-height: 260px; }
+  .report-tools { grid-template-columns: 1fr 1fr; }
+  .report-summary { grid-template-columns: repeat(2, 1fr); }
+  .workflow-step { display: none; }
+  .workflow-step.is-active { display: flex; }
+}
+
+@media (max-width: 680px) {
+  .app-shell { display: block; }
+  .topbar { height: 64px; padding: 0 14px; }
+  .brand-copy span { display: none; }
+  .brand-copy { min-width: 0; }
+  .workflow { justify-content: flex-end; }
+  .sidebar { display: none; }
+  .workspace { padding: 18px 12px 28px; }
+  .project-head { align-items: flex-start; flex-direction: column; gap: 14px; }
+  .head-actions { width: 100%; }
+  .head-actions button { flex: 1; }
+  .check-group { align-items: flex-start; flex-wrap: wrap; }
+  .sheet-chips { order: 3; flex-basis: 100%; flex-wrap: wrap; }
+  .group-progress { margin-left: auto; }
+  .content-grid { display: block; }
+  .findings-panel { margin-top: 14px; }
+  .viewer-panel { overflow-x: auto; }
+  .viewer-toolbar, .plan-canvas, .comparison-card { min-width: 620px; }
+  .bottom-gate { grid-template-columns: auto 1fr; }
+  .gate-status { display: none; }
+  .bottom-gate button { grid-column: 1 / -1; }
+  .projects-header { align-items: stretch; flex-direction: column; }
+  .projects-user { text-align: left; }
+  .projects-header > button { width: 100%; }
+  .timeline-stats { grid-template-columns: repeat(2, 1fr); }
+  .timeline-stats div:nth-child(2) { border-right: 0; }
+  .timeline-head { align-items: flex-start; flex-direction: column; gap: 12px; }
+  .timeline-actions { width: 100%; flex-direction: column; }
+  .timeline-head button { width: 100%; }
+  .form-grid { grid-template-columns: 1fr; }
+  .reports-header { align-items: stretch; flex-direction: column; }
+  .reports-owner { text-align: left; }
+  .reports-header > button { width: 100%; }
+  .report-tools { grid-template-columns: 1fr; }
+  .revision-picker { grid-template-columns: 1fr; }
+  .revision-arrow { height: auto; rotate: 90deg; }
+  .design-change-row { grid-template-columns: 1fr; gap: 5px; }
+  .design-change-row.header { display: none; }
+}
+
+======================================================================
+FILE: app/chatgpt-auth.ts
+======================================================================
+
+import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+
+export type ChatGPTUser = {
+  userId: string;
+  displayName: string;
+  email: string;
+  fullName: string | null;
+};
+
+const USER_ID_HEADER = "oai-authenticated-user-id";
+const USER_EMAIL_HEADER = "oai-authenticated-user-email";
+const USER_FULL_NAME_HEADER = "oai-authenticated-user-full-name";
+const USER_FULL_NAME_ENCODING_HEADER =
+  "oai-authenticated-user-full-name-encoding";
+const PERCENT_ENCODED_UTF8 = "percent-encoded-utf-8";
+const SIGN_IN_PATH = "/signin-with-chatgpt";
+const SIGN_OUT_PATH = "/signout-with-chatgpt";
+const CALLBACK_PATH = "/callback";
+
+export async function getChatGPTUser(): Promise<ChatGPTUser | null> {
+  const requestHeaders = await headers();
+  const userId = requestHeaders.get(USER_ID_HEADER);
+  const email = requestHeaders.get(USER_EMAIL_HEADER);
+  if (!userId || !email) return null;
+
+  const encodedFullName = requestHeaders.get(USER_FULL_NAME_HEADER);
+  const fullName =
+    encodedFullName &&
+    requestHeaders.get(USER_FULL_NAME_ENCODING_HEADER) === PERCENT_ENCODED_UTF8
+      ? safeDecodeURIComponent(encodedFullName)
+      : null;
+
+  return {
+    userId,
+    displayName: fullName ?? email,
+    email,
+    fullName,
+  };
+}
+
+export async function requireChatGPTUser(
+  returnTo: string,
+): Promise<ChatGPTUser> {
+  const user = await getChatGPTUser();
+  if (user) return user;
+
+  redirect(chatGPTSignInPath(returnTo));
+}
+
+export function chatGPTSignInPath(returnTo: string): string {
+  const safeReturnTo = safeRelativeReturnPath(returnTo);
+  return `${SIGN_IN_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+}
+
+export function chatGPTSignOutPath(returnTo = "/"): string {
+  const safeReturnTo = safeRelativeReturnPath(returnTo);
+  return `${SIGN_OUT_PATH}?return_to=${encodeURIComponent(safeReturnTo)}`;
+}
+
+function safeRelativeReturnPath(value: string): string {
+  if (!value.startsWith("/") || value.startsWith("//")) return "/";
+
+  let url: URL;
+  try {
+    url = new URL(value, "https://app.local");
+  } catch {
+    return "/";
+  }
+  if (url.origin !== "https://app.local") return "/";
+  if (isReservedAuthPath(url.pathname)) return "/";
+
+  return `${url.pathname}${url.search}${url.hash}`;
+}
+
+function isReservedAuthPath(pathname: string): boolean {
+  return (
+    pathname === SIGN_IN_PATH ||
+    pathname === SIGN_OUT_PATH ||
+    pathname === CALLBACK_PATH
+  );
+}
+
+function safeDecodeURIComponent(value: string): string | null {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return null;
+  }
+}
+
+======================================================================
+FILE: app/api/projects/route.ts
+======================================================================
+
+import { desc } from "drizzle-orm";
+import { getChatGPTUser } from "../../chatgpt-auth";
+import { getDb } from "../../../db";
+import { projectEvents, projects } from "../../../db/schema";
+
+function isDsUser(email: string) {
+  return email.toLowerCase().endsWith("@ds-miami.com");
+}
+
+export async function GET() {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
+
+  try {
+    const db = getDb();
+    const [projectRows, eventRows] = await Promise.all([
+      db.select().from(projects).orderBy(desc(projects.updatedAt)),
+      db.select().from(projectEvents).orderBy(desc(projectEvents.createdAt)),
+    ]);
+
+    return Response.json({
+      user: { displayName: user.displayName, email: user.email },
+      projects: projectRows.map((project) => ({
+        ...project,
+        events: eventRows.filter((event) => event.projectId === project.id),
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível carregar os projetos.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
+
+  const payload = (await request.json()) as { name?: string; code?: string; projectType?: string };
+  const name = payload.name?.trim() ?? "";
+  if (!name) return Response.json({ error: "O nome do projeto é obrigatório." }, { status: 400 });
+
+  const projectId = crypto.randomUUID();
+  const eventId = crypto.randomUUID();
+  const db = getDb();
+  const [project] = await db
+    .insert(projects)
+    .values({
+      id: projectId,
+      name,
+      code: payload.code?.trim() ?? "",
+      projectType: payload.projectType?.trim() || "Residential",
+      createdBy: user.userId,
+      createdByEmail: user.email,
+    })
+    .returning();
+
+  const [event] = await db
+    .insert(projectEvents)
+    .values({
+      id: eventId,
+      projectId,
+      documentType: "Projeto",
+      title: "Projeto criado",
+      status: "Ativo",
+      notes: "Timeline iniciada no DS Project QC.",
+      createdBy: user.userId,
+      createdByEmail: user.email,
+    })
+    .returning();
+
+  return Response.json({ project: { ...project, events: [event] } }, { status: 201 });
+}
+
+======================================================================
+FILE: app/api/project-events/route.ts
+======================================================================
+
+import { eq, sql } from "drizzle-orm";
+import { getChatGPTUser } from "../../chatgpt-auth";
+import { getDb } from "../../../db";
+import { projectEvents, projects } from "../../../db/schema";
+
+function isDsUser(email: string) {
+  return email.toLowerCase().endsWith("@ds-miami.com");
+}
+
+export async function POST(request: Request) {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
+
+  const payload = (await request.json()) as {
+    projectId?: string;
+    documentType?: string;
+    title?: string;
+    revision?: string;
+    status?: string;
+    notes?: string;
+  };
+
+  const projectId = payload.projectId?.trim() ?? "";
+  const title = payload.title?.trim() ?? "";
+  if (!projectId || !title) {
+    return Response.json({ error: "Projeto e descrição são obrigatórios." }, { status: 400 });
+  }
+
+  const db = getDb();
+  const [project] = await db.select({ id: projects.id }).from(projects).where(eq(projects.id, projectId)).limit(1);
+  if (!project) return Response.json({ error: "Projeto não encontrado." }, { status: 404 });
+
+  const [event] = await db
+    .insert(projectEvents)
+    .values({
+      id: crypto.randomUUID(),
+      projectId,
+      documentType: payload.documentType?.trim() || "Correção",
+      title,
+      revision: payload.revision?.trim() ?? "",
+      status: payload.status?.trim() || "Registrado",
+      notes: payload.notes?.trim() ?? "",
+      createdBy: user.userId,
+      createdByEmail: user.email,
+    })
+    .returning();
+
+  await db.update(projects).set({ updatedAt: sql`CURRENT_TIMESTAMP` }).where(eq(projects.id, projectId));
+  return Response.json({ event }, { status: 201 });
+}
+
+======================================================================
+FILE: app/api/reports/route.ts
+======================================================================
+
+import { desc } from "drizzle-orm";
+import { getChatGPTUser } from "../../chatgpt-auth";
+import { getDb } from "../../../db";
+import { projectEvents, projects } from "../../../db/schema";
+
+const ADMIN_EMAILS = new Set(["svalerio@ds-miami.com"]);
+
+export async function GET() {
+  const user = await getChatGPTUser();
+  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+  if (!ADMIN_EMAILS.has(user.email.toLowerCase())) {
+    return Response.json({ error: "ADMIN_REQUIRED" }, { status: 403 });
+  }
+
+  try {
+    const db = getDb();
+    const [projectRows, eventRows] = await Promise.all([
+      db.select().from(projects).orderBy(desc(projects.updatedAt)),
+      db.select().from(projectEvents).orderBy(desc(projectEvents.createdAt)),
+    ]);
+    const projectById = new Map(projectRows.map((project) => [project.id, project]));
+    const entries = eventRows.map((event) => {
+      const project = projectById.get(event.projectId);
+      const isCorrection = event.documentType === "Correção" || event.status === "Correções pendentes";
+      const isUpload = event.status === "Carregado" || ["Project Package", "Shop Drawings", "Material List", "Budget / RFQ"].includes(event.documentType);
+      return {
+        id: event.id,
+        projectId: event.projectId,
+        projectName: project?.name ?? "Projeto removido",
+        projectCode: project?.code ?? "",
+        documentType: event.documentType,
+        title: event.title,
+        revision: event.revision,
+        status: event.status,
+        notes: event.notes,
+        actorEmail: event.createdByEmail,
+        createdAt: event.createdAt,
+        isCorrection,
+        isUpload,
+      };
+    });
+
+    return Response.json({
+      admin: { email: user.email, displayName: user.displayName },
+      summary: {
+        projects: projectRows.length,
+        uploads: entries.filter((entry) => entry.isUpload).length,
+        corrections: entries.filter((entry) => entry.isCorrection).length,
+        contributors: new Set(entries.map((entry) => entry.actorEmail)).size,
+      },
+      projects: projectRows.map((project) => ({ id: project.id, name: project.name })),
+      entries,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível gerar o relatório.";
+    return Response.json({ error: message }, { status: 500 });
+  }
+}
+
+======================================================================
+FILE: db/index.ts
+======================================================================
+
+import { env } from "cloudflare:workers";
+import { drizzle } from "drizzle-orm/d1";
+import * as schema from "./schema";
+
+export function getDb() {
+  if (!env.DB) {
+    throw new Error(
+      "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in .openai/hosting.json to `DB` or let your control plane inject the real binding values before using the database."
+    );
+  }
+
+  return drizzle(env.DB, { schema });
+}
+
+======================================================================
+FILE: db/schema.ts
+======================================================================
+
+import { sql } from "drizzle-orm";
+import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+
+export const projects = sqliteTable(
+  "projects",
+  {
+    id: text("id").primaryKey(),
+    name: text("name").notNull(),
+    code: text("code").notNull().default(""),
+    projectType: text("project_type").notNull().default("Residential"),
+    status: text("status").notNull().default("Ativo"),
+    createdBy: text("created_by").notNull(),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("idx_projects_updated_at").on(table.updatedAt),
+    index("idx_projects_status").on(table.status),
+  ],
+);
+
+export const projectEvents = sqliteTable(
+  "project_events",
+  {
+    id: text("id").primaryKey(),
+    projectId: text("project_id")
+      .notNull()
+      .references(() => projects.id, { onDelete: "cascade" }),
+    documentType: text("document_type").notNull(),
+    title: text("title").notNull(),
+    revision: text("revision").notNull().default(""),
+    status: text("status").notNull().default("Registrado"),
+    notes: text("notes").notNull().default(""),
+    createdBy: text("created_by").notNull(),
+    createdByEmail: text("created_by_email").notNull(),
+    createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    index("idx_project_events_project_created").on(table.projectId, table.createdAt),
+  ],
+);
+
+======================================================================
+FILE: worker/index.ts
+======================================================================
+
+/** Cloudflare Worker entry point for the vinext-starter template. */
+import { handleImageOptimization, DEFAULT_DEVICE_SIZES, DEFAULT_IMAGE_SIZES } from "vinext/server/image-optimization";
+import handler from "vinext/server/app-router-entry";
+
+interface Env {
+  ASSETS: Fetcher;
+  DB: D1Database;
+  IMAGES: {
+    input(stream: ReadableStream): {
+      transform(options: Record<string, unknown>): {
+        output(options: { format: string; quality: number }): Promise<{ response(): Response }>;
+      };
+    };
+  };
+}
+
+interface ExecutionContext {
+  waitUntil(promise: Promise<unknown>): void;
+  passThroughOnException(): void;
+}
+
+// Image security config. SVG sources with .svg extension auto-skip the
+// optimization endpoint on the client side (served directly, no proxy).
+// To route SVGs through the optimizer (with security headers), set
+// dangerouslyAllowSVG: true in next.config.js and uncomment below:
+// const imageConfig: ImageConfig = { dangerouslyAllowSVG: true };
+
+const worker = {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === "/_vinext/image") {
+      const allowedWidths = [...DEFAULT_DEVICE_SIZES, ...DEFAULT_IMAGE_SIZES];
+      return handleImageOptimization(request, {
+        fetchAsset: (path) => env.ASSETS.fetch(new Request(new URL(path, request.url))),
+        transformImage: async (body, { width, format, quality }) => {
+          const result = await env.IMAGES.input(body).transform(width > 0 ? { width } : {}).output({ format, quality });
+          return result.response();
+        },
+      }, allowedWidths);
+    }
+
+    return handler.fetch(request, env, ctx);
+  },
+};
+
+export default worker;
+
+======================================================================
+FILE: drizzle/0000_clean_ben_urich.sql
+======================================================================
+
+CREATE TABLE `project_events` (
+	`id` text PRIMARY KEY NOT NULL,
+	`project_id` text NOT NULL,
+	`document_type` text NOT NULL,
+	`title` text NOT NULL,
+	`revision` text DEFAULT '' NOT NULL,
+	`status` text DEFAULT 'Registrado' NOT NULL,
+	`notes` text DEFAULT '' NOT NULL,
+	`created_by` text NOT NULL,
+	`created_by_email` text NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	FOREIGN KEY (`project_id`) REFERENCES `projects`(`id`) ON UPDATE no action ON DELETE cascade
+);
+--> statement-breakpoint
+CREATE INDEX `idx_project_events_project_created` ON `project_events` (`project_id`,`created_at`);--> statement-breakpoint
+CREATE TABLE `projects` (
+	`id` text PRIMARY KEY NOT NULL,
+	`name` text NOT NULL,
+	`code` text DEFAULT '' NOT NULL,
+	`project_type` text DEFAULT 'Residential' NOT NULL,
+	`status` text DEFAULT 'Ativo' NOT NULL,
+	`created_by` text NOT NULL,
+	`created_by_email` text NOT NULL,
+	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX `idx_projects_updated_at` ON `projects` (`updated_at`);--> statement-breakpoint
+CREATE INDEX `idx_projects_status` ON `projects` (`status`);
+
+======================================================================
+FILE: drizzle.config.ts
+======================================================================
+
+import { defineConfig } from "drizzle-kit";
+
+export default defineConfig({
+  out: "./drizzle",
+  schema: "./db/schema.ts",
+  dialect: "sqlite",
+});
+
+======================================================================
+FILE: vite.config.ts
+======================================================================
+
+import vinext from "vinext";
+import { defineConfig } from "vite";
+import hostingConfig from "./.openai/hosting.json";
+import { sites } from "./build/sites-vite-plugin";
+
+const SITE_CREATOR_PLACEHOLDER_DATABASE_ID =
+  "00000000-0000-4000-8000-000000000000";
+
+const { d1, r2 } = hostingConfig;
+
+// macOS Seatbelt blocks FSEvents, so Codex previews need polling for HMR.
+const isCodexSeatbeltSandbox = process.env.CODEX_SANDBOX === "seatbelt";
+
+const localBindingConfig = {
+  main: "./worker/index.ts",
+  compatibility_flags: ["nodejs_compat"],
+  d1_databases: d1
+    ? [
+        {
+          binding: d1,
+          database_name: "site-creator-d1",
+          database_id: SITE_CREATOR_PLACEHOLDER_DATABASE_ID,
+        },
+      ]
+    : [],
+  r2_buckets: r2
+    ? [
+        {
+          binding: r2,
+          bucket_name: "site-creator-r2",
+        },
+      ]
+    : [],
+};
+
+export default defineConfig(async () => {
+  // Keep Wrangler and Miniflare state project-local. These are non-secret tool
+  // settings; application environment belongs in ignored `.env*` files.
+  process.env.WRANGLER_WRITE_LOGS ??= "false";
+  process.env.WRANGLER_LOG_PATH ??= ".wrangler/logs";
+  process.env.MINIFLARE_REGISTRY_PATH ??= ".wrangler/registry";
+
+  // Wrangler snapshots its log path while the Cloudflare plugin is imported.
+  const { cloudflare } = await import("@cloudflare/vite-plugin");
+
+  return {
+    server: isCodexSeatbeltSandbox
+      ? { watch: { useFsEvents: false, usePolling: true } }
+      : undefined,
+    plugins: [
+      vinext(),
+      sites(),
+      cloudflare({
+        viteEnvironment: { name: "rsc", childEnvironments: ["ssr"] },
+        config: localBindingConfig,
+      }),
+    ],
+  };
+});
+
+======================================================================
+FILE: next.config.ts
+======================================================================
+
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
+
+======================================================================
+FILE: postcss.config.mjs
+======================================================================
+
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+
+======================================================================
+FILE: eslint.config.mjs
+======================================================================
+
+import { defineConfig, globalIgnores } from "eslint/config";
+import eslint from "@eslint/js";
+import next from "@next/eslint-plugin-next";
+import jsxA11y from "eslint-plugin-jsx-a11y";
+import react from "eslint-plugin-react";
+import reactHooks from "eslint-plugin-react-hooks";
+import globals from "globals";
+import tseslint from "typescript-eslint";
+
+const eslintConfig = defineConfig([
+  globalIgnores([
+    ".next/**",
+    "dist/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+  eslint.configs.recommended,
+  ...tseslint.configs.recommended,
+  react.configs.flat.recommended,
+  react.configs.flat["jsx-runtime"],
+  reactHooks.configs.flat["recommended-latest"],
+  jsxA11y.flatConfigs.recommended,
+  next.configs["core-web-vitals"],
+  {
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        ...globals.serviceworker,
+      },
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+    },
+  },
+]);
+
+export default eslintConfig;
+
+======================================================================
+FILE: tsconfig.json
+======================================================================
+
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+
+======================================================================
+FILE: package.json
+======================================================================
+
+{
+  "name": "site-creator-vinext-starter",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "dev": "vinext dev",
+    "build": "vinext build",
+    "start": "vinext start",
+    "test": "npm run build && node --test tests/rendered-html.test.mjs",
+    "lint": "eslint . --ignore-pattern dist --ignore-pattern .next --ignore-pattern .vinext --ignore-pattern .wrangler --ignore-pattern tmp",
+    "db:generate": "drizzle-kit generate",
+    "db:local:init": "wrangler d1 execute site-creator-d1 --local --file=drizzle/0000_clean_ben_urich.sql"
+  },
+  "dependencies": {
+    "drizzle-orm": "0.45.2",
+    "react": "19.2.6",
+    "react-dom": "19.2.6"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "1.37.1",
+    "@eslint/js": "9.39.4",
+    "@next/eslint-plugin-next": "16.2.6",
+    "@tailwindcss/postcss": "4.2.1",
+    "@types/node": "22.19.19",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.2",
+    "@vitejs/plugin-rsc": "0.5.26",
+    "drizzle-kit": "0.31.10",
+    "eslint": "9.39.4",
+    "eslint-plugin-jsx-a11y": "6.10.2",
+    "eslint-plugin-react": "7.37.5",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "16.4.0",
+    "react-server-dom-webpack": "19.2.6",
+    "tailwindcss": "4.2.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.59.3",
+    "vinext": "1.0.0-beta.2",
+    "vite": "8.0.13",
+    "wrangler": "4.92.0"
+  },
+  "type": "module"
+}
+
+======================================================================
+FILE: tests/rendered-html.test.mjs
+======================================================================
+
+import assert from "node:assert/strict";
+import { access, readFile, readdir } from "node:fs/promises";
+import test from "node:test";
+
+const developmentPreviewMeta =
+  /<meta(?=[^>]*\bname=["']codex-preview["'])(?=[^>]*\bcontent=["']development["'])[^>]*>/i;
+const templateRoot = new URL("../", import.meta.url);
+const previewRoot = new URL("../app/_sites-preview/", import.meta.url);
+
+async function render() {
+  const workerUrl = new URL("../dist/server/index.js", import.meta.url);
+  workerUrl.searchParams.set("test", `${process.pid}-${Date.now()}`);
+  const { default: worker } = await import(workerUrl.href);
+
+  return worker.fetch(
+    new Request("http://localhost/", {
+      headers: { accept: "text/html" },
+    }),
+    {
+      ASSETS: {
+        fetch: async () => new Response("Not found", { status: 404 }),
+      },
+    },
+    {
+      waitUntil() {},
+      passThroughOnException() {},
+    },
+  );
+}
+
+test("server-renders the starter loading skeleton", async () => {
+  const response = await render();
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get("content-type") ?? "", /^text\/html\b/i);
+
+  const html = await response.text();
+  assert.match(html, developmentPreviewMeta);
+  assert.match(html, /<title>Your site is taking shape<\/title>/i);
+  assert.match(html, /Building your site/);
+  assert.match(html, /Your site is taking shape/);
+  assert.match(
+    html,
+    /Your first version will appear here automatically when it’s ready\./,
+  );
+  assert.doesNotMatch(html, /Codex/);
+  assert.match(html, /react-loading-skeleton/);
+  assert.match(html, /role="status"/);
+});
+
+test("keeps the loading skeleton scoped and disposable", async () => {
+  const [preview, css, page, layout, packageJson, files] = await Promise.all([
+    readFile(new URL("SkeletonPreview.tsx", previewRoot), "utf8"),
+    readFile(new URL("preview.css", previewRoot), "utf8"),
+    readFile(new URL("../app/page.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/layout.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../package.json", import.meta.url), "utf8"),
+    readdir(previewRoot),
+  ]);
+
+  assert.deepEqual(files.sort(), ["SkeletonPreview.tsx", "preview.css"]);
+  assert.match(preview, /from "react-loading-skeleton"/);
+  assert.match(preview, /baseColor="#eceae7"/);
+  assert.match(preview, /highlightColor="#f9f8f6"/);
+  assert.match(preview, /duration=\{2\.8\}/);
+  assert.match(preview, /sites-skeleton-search-placeholder/);
+  assert.match(packageJson, /"react-loading-skeleton": "3\.5\.0"/);
+
+  const shellIndex = preview.indexOf('className="sites-skeleton-shell"');
+  const statusIndex = preview.indexOf('className="sites-skeleton-status"');
+  assert.ok(shellIndex >= 0 && statusIndex > shellIndex);
+  assert.match(css, /position:\s*fixed/);
+  assert.match(css, /inset:\s*0/);
+  assert.match(css, /opacity:\s*0\.52/);
+  assert.match(css, /prefers-reduced-motion:\s*reduce/);
+  assert.doesNotMatch(css, /#020617|canvas|pets|progress/i);
+  assert.doesNotMatch(
+    preview,
+    /loading-spinner|status-mark|status-progress|canvas|cookie|random/i,
+  );
+
+  assert.match(page, /export const metadata:\s*Metadata/);
+  assert.match(page, /"codex-preview": "development"/);
+  assert.match(page, /<SkeletonPreview \/>/);
+  assert.match(layout, /title:\s*"Starter Project"/);
+  assert.doesNotMatch(layout, /codex-preview|_sites-preview|themeColor|\bViewport\b/);
+  assert.doesNotMatch(css, /(^|\s)(html|body)\s*\{/m);
+
+  await assert.rejects(
+    access(new URL("public/_sites-preview", templateRoot)),
+  );
+});
+
+======================================================================
+END OF EXPORT
+======================================================================
