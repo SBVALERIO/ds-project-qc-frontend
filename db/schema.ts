@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const projects = sqliteTable(
   "projects",
@@ -40,5 +40,25 @@ export const projectEvents = sqliteTable(
   },
   (table) => [
     index("idx_project_events_project_created").on(table.projectId, table.createdAt),
+  ],
+);
+
+// A finding's `id` is only unique within the analysis run that produced
+// it (re-numbered from 1 per upload), so a status/reason needs the pair
+// (event_id, finding_id) as its key, not the finding id alone.
+export const taskStatuses = sqliteTable(
+  "task_statuses",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => projectEvents.id, { onDelete: "cascade" }),
+    findingId: integer("finding_id").notNull(),
+    status: text("status").notNull().default("Pendente"),
+    reason: text("reason").notNull().default(""),
+    updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  },
+  (table) => [
+    uniqueIndex("idx_task_statuses_event_finding").on(table.eventId, table.findingId),
   ],
 );

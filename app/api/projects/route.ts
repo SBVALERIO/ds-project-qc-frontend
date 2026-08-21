@@ -1,21 +1,27 @@
 import { desc } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { projectEvents, projects } from "../../../db/schema";
+import { projectEvents, projects, taskStatuses } from "../../../db/schema";
 import { TEAM_AUTHOR, TEAM_AUTHOR_EMAIL } from "../../team-author";
 
 export async function GET() {
   try {
     const db = getDb();
-    const [projectRows, eventRows] = await Promise.all([
+    const [projectRows, eventRows, statusRows] = await Promise.all([
       db.select().from(projects).orderBy(desc(projects.updatedAt)),
       db.select().from(projectEvents).orderBy(desc(projectEvents.createdAt)),
+      db.select().from(taskStatuses),
     ]);
 
     return Response.json({
       user: { displayName: TEAM_AUTHOR, email: TEAM_AUTHOR_EMAIL },
       projects: projectRows.map((project) => ({
         ...project,
-        events: eventRows.filter((event) => event.projectId === project.id),
+        events: eventRows
+          .filter((event) => event.projectId === project.id)
+          .map((event) => ({
+            ...event,
+            taskStatuses: statusRows.filter((row) => row.eventId === event.id),
+          })),
       })),
     });
   } catch (error) {
