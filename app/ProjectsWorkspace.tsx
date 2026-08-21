@@ -73,6 +73,7 @@ export function ProjectsWorkspace() {
   const [eventForm, setEventForm] = useState({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
   const [eventFile, setEventFile] = useState<File | null>(null);
   const [eventOrigin, setEventOrigin] = useState<DocumentOrigin>("autocad");
+  const [checkTbdSpecs, setCheckTbdSpecs] = useState(false);
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeId) ?? projects[0],
@@ -129,6 +130,7 @@ export function ProjectsWorkspace() {
   function closeEventModal() {
     setShowEvent(false);
     setEventFile(null);
+    setCheckTbdSpecs(false);
     setEventForm({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
   }
 
@@ -144,6 +146,7 @@ export function ProjectsWorkspace() {
       const body = new FormData();
       body.append("file", eventFile);
       body.append("origin", eventOrigin);
+      body.append("check_tbd_specs", String(checkTbdSpecs));
       try {
         const response = await fetch(ENGINE_API_URL, { method: "POST", body });
         if (!response.ok) throw new Error(`motor retornou ${response.status}`);
@@ -298,9 +301,16 @@ export function ProjectsWorkspace() {
             <label className="field-label">Anexar PDF pra correção (opcional)</label>
             <input type="file" accept="application/pdf" onChange={(event) => setEventFile(event.target.files?.[0] ?? null)} />
             {eventFile && (
-              <div className="form-grid" style={{ marginTop: 10 }}>
-                <label><span>Origem do arquivo</span><select value={eventOrigin} onChange={(event) => setEventOrigin(event.target.value as DocumentOrigin)}><option value="autocad">Project Package — AutoCAD</option><option value="revit">Project Package — Revit</option><option value="shop_drawings">Shop Drawings</option></select></label>
-              </div>
+              <>
+                <div className="form-grid" style={{ marginTop: 10 }}>
+                  <label><span>Origem do arquivo</span><select value={eventOrigin} onChange={(event) => setEventOrigin(event.target.value as DocumentOrigin)}><option value="autocad">Project Package — AutoCAD</option><option value="revit">Project Package — Revit</option><option value="shop_drawings">Shop Drawings</option></select></label>
+                </div>
+                <label className="tbd-check">
+                  <input type="checkbox" checked={checkTbdSpecs} onChange={(event) => setCheckTbdSpecs(event.target.checked)} />
+                  <span>Verificar specs TBD</span>
+                  <small>Marque só se o projeto já não deveria ter mais nada em aberto (ex.: em obra). Em early stage, deixe desmarcado.</small>
+                </label>
+              </>
             )}
 
             <button className="button primary full" disabled={busy || analyzing || !eventForm.title.trim()}>

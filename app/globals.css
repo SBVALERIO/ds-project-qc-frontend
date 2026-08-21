@@ -314,6 +314,10 @@ fieldset input { accent-color: var(--green); }
 .form-grid label { display: flex; flex-direction: column; gap: 6px; }
 .form-grid label span { font-size: 9px; font-weight: 750; }
 .project-form > select { margin-top: 0; }
+.tbd-check { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; margin-top: 14px; padding: 10px 12px; background: #f7f8f6; border: 1px solid var(--line); border-radius: 8px; }
+.tbd-check input[type="checkbox"] { width: 15px; height: 15px; margin-top: 2px; }
+.tbd-check span { font-size: 10px; font-weight: 750; }
+.tbd-check small { grid-column: 2; color: var(--muted); font-size: 9px; line-height: 1.45; }
 .compare-modal { width: min(840px, calc(100vw - 30px)); max-height: calc(100vh - 34px); overflow-y: auto; }
 .revision-picker { display: grid; grid-template-columns: 1fr auto 1fr auto; align-items: end; gap: 11px; padding: 15px; border-radius: 9px; background: #F4F7F5; border: 1px solid var(--line); }
 .revision-picker label { display: flex; flex-direction: column; gap: 6px; }
