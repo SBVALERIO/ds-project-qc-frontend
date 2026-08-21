@@ -3,6 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { ProjectsWorkspace } from "./ProjectsWorkspace";
 import { ReportsWorkspace } from "./ReportsWorkspace";
+import { TasksWorkspace } from "./TasksWorkspace";
 
 type FindingStatus = "Pendente" | "Corrigido" | "Non Applicable";
 
@@ -298,7 +299,7 @@ export default function Home() {
       </aside>
 
       <section className="workspace">
-        {activeNav === "Projetos" ? <ProjectsWorkspace /> : activeNav === "Reports — Admin" ? <ReportsWorkspace /> : <>
+        {activeNav === "Projetos" ? <ProjectsWorkspace /> : activeNav === "Reports — Admin" ? <ReportsWorkspace /> : activeNav === "Tasks" ? <TasksWorkspace /> : <>
         <div className="project-head">
           <div>
             <div className="eyebrow">PROJECT PACKAGE CHECK</div>
