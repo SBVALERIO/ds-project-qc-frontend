@@ -1,17 +1,9 @@
 import { desc } from "drizzle-orm";
-import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { projectEvents, projects } from "../../../db/schema";
-
-const ADMIN_EMAILS = new Set(["svalerio@ds-miami.com"]);
+import { TEAM_AUTHOR, TEAM_AUTHOR_EMAIL } from "../../team-author";
 
 export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  if (!ADMIN_EMAILS.has(user.email.toLowerCase())) {
-    return Response.json({ error: "ADMIN_REQUIRED" }, { status: 403 });
-  }
-
   try {
     const db = getDb();
     const [projectRows, eventRows] = await Promise.all([
@@ -41,7 +33,7 @@ export async function GET() {
     });
 
     return Response.json({
-      admin: { email: user.email, displayName: user.displayName },
+      admin: { email: TEAM_AUTHOR_EMAIL, displayName: TEAM_AUTHOR },
       summary: {
         projects: projectRows.length,
         uploads: entries.filter((entry) => entry.isUpload).length,

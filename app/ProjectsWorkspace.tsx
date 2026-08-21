@@ -2,6 +2,18 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+type Finding = {
+  id: number;
+  title: string;
+  sheet: string;
+  confidence: "Alta" | "Média" | "Menor";
+  evidence: "Schedule" | "Visual" | "Cross-check";
+};
+
+type DocumentOrigin = "revit" | "autocad" | "shop_drawings";
+
+const ENGINE_API_URL = `${import.meta.env.VITE_ENGINE_API_URL ?? "https://ds-project-qc-engine.onrender.com"}/analyze`;
+
 type ProjectEvent = {
   id: string;
   documentType: string;
@@ -9,6 +21,8 @@ type ProjectEvent = {
   revision: string;
   status: string;
   notes: string;
+  findingsSummary: string;
+  findingsJson: string;
   createdByEmail: string;
   createdAt: string;
 };
@@ -23,13 +37,28 @@ type Project = {
   events: ProjectEvent[];
 };
 
-type AccessState = "loading" | "ready" | "signin" | "forbidden" | "error";
+type AccessState = "loading" | "ready" | "error";
+
+function parseFindings(findingsJson: string): Finding[] {
+  try {
+    const parsed = JSON.parse(findingsJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function summarizeFindings(findings: Finding[]): string {
+  const alta = findings.filter((item) => item.confidence === "Alta").length;
+  const media = findings.filter((item) => item.confidence === "Média").length;
+  const menor = findings.filter((item) => item.confidence === "Menor").length;
+  return `${findings.length} achado${findings.length === 1 ? "" : "s"} · ${alta} alta, ${media} média, ${menor} menor`;
+}
 
 export function ProjectsWorkspace() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState("");
   const [access, setAccess] = useState<AccessState>("loading");
-  const [userEmail, setUserEmail] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [showEvent, setShowEvent] = useState(false);
   const [showCompare, setShowCompare] = useState(false);
@@ -37,9 +66,13 @@ export function ProjectsWorkspace() {
   const [compareFrom, setCompareFrom] = useState("R03");
   const [compareTo, setCompareTo] = useState("R04");
   const [busy, setBusy] = useState(false);
+  const [analyzing, setAnalyzing] = useState(false);
   const [message, setMessage] = useState("");
+  const [expandedEventId, setExpandedEventId] = useState("");
   const [projectForm, setProjectForm] = useState({ name: "", code: "", projectType: "Residential" });
   const [eventForm, setEventForm] = useState({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
+  const [eventFile, setEventFile] = useState<File | null>(null);
+  const [eventOrigin, setEventOrigin] = useState<DocumentOrigin>("autocad");
 
   const activeProject = useMemo(
     () => projects.find((project) => project.id === activeId) ?? projects[0],
@@ -62,12 +95,9 @@ export function ProjectsWorkspace() {
     setAccess("loading");
     try {
       const response = await fetch("/api/projects", { cache: "no-store" });
-      if (response.status === 401) return setAccess("signin");
-      if (response.status === 403) return setAccess("forbidden");
       if (!response.ok) throw new Error("load failed");
-      const data = (await response.json()) as { projects: Project[]; user: { email: string } };
+      const data = (await response.json()) as { projects: Project[] };
       setProjects(data.projects);
-      setUserEmail(data.user.email);
       setActiveId((current) => current || data.projects[0]?.id || "");
       setAccess("ready");
     } catch {
@@ -96,14 +126,47 @@ export function ProjectsWorkspace() {
     setMessage(`Projeto ${data.project.name} criado com timeline própria.`);
   }
 
+  function closeEventModal() {
+    setShowEvent(false);
+    setEventFile(null);
+    setEventForm({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
+  }
+
   async function addEvent(event: FormEvent) {
     event.preventDefault();
     if (!activeProject || !eventForm.title.trim()) return;
+
+    let findingsSummary = "";
+    let findingsJson = "[]";
+
+    if (eventFile) {
+      setAnalyzing(true);
+      const body = new FormData();
+      body.append("file", eventFile);
+      body.append("origin", eventOrigin);
+      try {
+        const response = await fetch(ENGINE_API_URL, { method: "POST", body });
+        if (!response.ok) throw new Error(`motor retornou ${response.status}`);
+        const data = (await response.json()) as { findings: Finding[] };
+        findingsSummary = summarizeFindings(data.findings);
+        findingsJson = JSON.stringify(data.findings);
+      } catch (error) {
+        setAnalyzing(false);
+        setMessage(
+          error instanceof Error
+            ? `Não foi possível analisar "${eventFile.name}" (${error.message}). O registro não foi salvo.`
+            : "Não foi possível analisar o arquivo. O registro não foi salvo.",
+        );
+        return;
+      }
+      setAnalyzing(false);
+    }
+
     setBusy(true);
     const response = await fetch("/api/project-events", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ ...eventForm, projectId: activeProject.id }),
+      body: JSON.stringify({ ...eventForm, projectId: activeProject.id, findingsSummary, findingsJson }),
     });
     setBusy(false);
     if (!response.ok) return setMessage("Não foi possível registrar esta etapa.");
@@ -111,29 +174,12 @@ export function ProjectsWorkspace() {
     setProjects((items) => items.map((project) => project.id === activeProject.id
       ? { ...project, events: [data.event, ...project.events], updatedAt: data.event.createdAt }
       : project));
-    setEventForm({ documentType: "Project Package", title: "", revision: "R00", status: "Carregado", notes: "" });
-    setShowEvent(false);
-    setMessage("Etapa adicionada à timeline do projeto.");
+    closeEventModal();
+    setMessage(findingsSummary ? `Etapa adicionada: ${findingsSummary}.` : "Etapa adicionada à timeline do projeto.");
   }
 
   if (access === "loading") {
     return <div className="projects-state"><div className="loading-ring"/><strong>Carregando projetos…</strong></div>;
-  }
-
-  if (access === "signin") {
-    return (
-      <div className="projects-state protected-state">
-        <div className="state-icon">◉</div>
-        <span>ÁREA PROTEGIDA DA EQUIPE DS</span>
-        <h1>Entre para acessar os projetos</h1>
-        <p>A página pública de demonstração continua aberta. Projetos e timelines exigem identificação para proteger as informações da empresa.</p>
-        <a className="button primary signin-button" href="/signin-with-chatgpt?return_to=%2F">Entrar com ChatGPT</a>
-      </div>
-    );
-  }
-
-  if (access === "forbidden") {
-    return <div className="projects-state protected-state"><div className="state-icon">!</div><h1>Acesso restrito à equipe DS</h1><p>Use uma conta ChatGPT associada ao e-mail corporativo @ds-miami.com.</p></div>;
   }
 
   if (access === "error") {
@@ -144,7 +190,6 @@ export function ProjectsWorkspace() {
     <>
       <div className="projects-header">
         <div><div className="eyebrow">PORTFÓLIO DE PROJETOS</div><h1>Projetos e timelines</h1><p>Um histórico contínuo de documentos, revisões, correções e aprovações.</p></div>
-        <div className="projects-user"><span>Conectada como</span><strong>{userEmail}</strong></div>
         <button className="button primary" onClick={() => setShowCreate(true)}>＋ Criar projeto</button>
       </div>
 
@@ -189,17 +234,39 @@ export function ProjectsWorkspace() {
                 <div><b>{activeProject.events.filter((item) => item.status === "Aprovado").length}</b><span>aprovados</span></div>
               </div>
               <div className="timeline">
-                {activeProject.events.map((item) => (
-                  <article className="timeline-item" key={item.id}>
-                    <div className={`timeline-dot ${item.status === "Aprovado" ? "approved" : ""}`}>{item.documentType === "Project Package" ? "PP" : item.documentType.slice(0, 2).toUpperCase()}</div>
-                    <div className="timeline-content">
-                      <div className="timeline-meta"><span>{item.documentType}</span>{item.revision && <b>{item.revision}</b>}<em>{item.status}</em><time>{new Date(item.createdAt.replace(" ", "T") + "Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</time></div>
-                      <h3>{item.title}</h3>
-                      {item.notes && <p>{item.notes}</p>}
-                      <small>Registrado por {item.createdByEmail}</small>
-                    </div>
-                  </article>
-                ))}
+                {activeProject.events.map((item) => {
+                  const itemFindings = item.findingsJson ? parseFindings(item.findingsJson) : [];
+                  const isExpanded = expandedEventId === item.id;
+                  return (
+                    <article className="timeline-item" key={item.id}>
+                      <div className={`timeline-dot ${item.status === "Aprovado" ? "approved" : ""}`}>{item.documentType === "Project Package" ? "PP" : item.documentType.slice(0, 2).toUpperCase()}</div>
+                      <div className="timeline-content">
+                        <div className="timeline-meta"><span>{item.documentType}</span>{item.revision && <b>{item.revision}</b>}<em>{item.status}</em><time>{new Date(item.createdAt.replace(" ", "T") + "Z").toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" })}</time></div>
+                        <h3>{item.title}</h3>
+                        {item.notes && <p>{item.notes}</p>}
+                        {item.findingsSummary && (
+                          <div className="timeline-findings">
+                            <button type="button" className="timeline-findings-toggle" onClick={() => setExpandedEventId(isExpanded ? "" : item.id)}>
+                              🔍 {item.findingsSummary} {isExpanded ? "▴" : "▾"}
+                            </button>
+                            {isExpanded && (
+                              <ul className="timeline-findings-list">
+                                {itemFindings.map((finding) => (
+                                  <li key={finding.id}>
+                                    <span className={`finding-mini-badge ${finding.confidence === "Alta" ? "high" : finding.confidence === "Média" ? "medium" : ""}`}>{finding.confidence}</span>
+                                    <span className="finding-mini-title">{finding.title}</span>
+                                    <span className="finding-mini-sheet">{finding.sheet}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        )}
+                        <small>Registrado por {item.createdByEmail}</small>
+                      </div>
+                    </article>
+                  );
+                })}
               </div>
             </section>
           )}
@@ -219,15 +286,26 @@ export function ProjectsWorkspace() {
       )}
 
       {showEvent && activeProject && (
-        <div className="modal-backdrop" onMouseDown={() => setShowEvent(false)}>
+        <div className="modal-backdrop" onMouseDown={() => !analyzing && !busy && closeEventModal()}>
           <form className="modal project-form" onSubmit={addEvent} onMouseDown={(event) => event.stopPropagation()}>
-            <button type="button" className="close" onClick={() => setShowEvent(false)}>×</button>
-            <span className="modal-kicker">{activeProject.name.toUpperCase()}</span><h2>Adicionar à timeline</h2><p>Registre um documento, revisão, rodada de correções ou decisão importante do projeto.</p>
+            <button type="button" className="close" onClick={closeEventModal}>×</button>
+            <span className="modal-kicker">{activeProject.name.toUpperCase()}</span><h2>Adicionar à timeline</h2><p>Registre um documento, revisão, rodada de correções ou decisão importante do projeto. Anexe o PDF pra rodar a verificação de QC automaticamente.</p>
             <div className="form-grid"><label><span>Tipo de registro</span><select value={eventForm.documentType} onChange={(event) => setEventForm({ ...eventForm, documentType: event.target.value })}><option>Project Package</option><option>Shop Drawings</option><option>Material List</option><option>Budget / RFQ</option><option>Correção</option><option>Reunião / Decisão</option><option>Outro</option></select></label><label><span>Revisão</span><input value={eventForm.revision} onChange={(event) => setEventForm({ ...eventForm, revision: event.target.value })} placeholder="R00" /></label></div>
             <label className="field-label">Descrição *</label><input required value={eventForm.title} onChange={(event) => setEventForm({ ...eventForm, title: event.target.value })} placeholder="Ex.: Project Package revisado carregado" />
             <label className="field-label">Status</label><select value={eventForm.status} onChange={(event) => setEventForm({ ...eventForm, status: event.target.value })}><option>Carregado</option><option>Em análise</option><option>Correções pendentes</option><option>Revisado</option><option>Aprovado</option><option>Arquivado</option></select>
             <label className="field-label">Observações</label><textarea value={eventForm.notes} onChange={(event) => setEventForm({ ...eventForm, notes: event.target.value })} placeholder="O que mudou ou precisa ser lembrado nesta etapa?" />
-            <button className="button primary full" disabled={busy || !eventForm.title.trim()}>{busy ? "Salvando…" : "Adicionar à timeline"}</button>
+
+            <label className="field-label">Anexar PDF pra correção (opcional)</label>
+            <input type="file" accept="application/pdf" onChange={(event) => setEventFile(event.target.files?.[0] ?? null)} />
+            {eventFile && (
+              <div className="form-grid" style={{ marginTop: 10 }}>
+                <label><span>Origem do arquivo</span><select value={eventOrigin} onChange={(event) => setEventOrigin(event.target.value as DocumentOrigin)}><option value="autocad">Project Package — AutoCAD</option><option value="revit">Project Package — Revit</option><option value="shop_drawings">Shop Drawings</option></select></label>
+              </div>
+            )}
+
+            <button className="button primary full" disabled={busy || analyzing || !eventForm.title.trim()}>
+              {analyzing ? "Analisando PDF…" : busy ? "Salvando…" : eventFile ? "Analisar e adicionar à timeline" : "Adicionar à timeline"}
+            </button>
           </form>
         </div>
       )}

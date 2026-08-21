@@ -25,7 +25,7 @@ type ReportData = {
   entries: ReportEntry[];
 };
 
-type Access = "loading" | "ready" | "signin" | "forbidden" | "error";
+type Access = "loading" | "ready" | "error";
 
 function csvCell(value: string | number | boolean) {
   return `"${String(value).replaceAll('"', '""')}"`;
@@ -42,8 +42,6 @@ export function ReportsWorkspace() {
     setAccess("loading");
     try {
       const response = await fetch("/api/reports", { cache: "no-store" });
-      if (response.status === 401) return setAccess("signin");
-      if (response.status === 403) return setAccess("forbidden");
       if (!response.ok) throw new Error("report failed");
       setData(await response.json() as ReportData);
       setAccess("ready");
@@ -76,15 +74,13 @@ export function ReportsWorkspace() {
   }
 
   if (access === "loading") return <div className="projects-state"><div className="loading-ring"/><strong>Gerando report administrativo…</strong></div>;
-  if (access === "signin") return <div className="projects-state protected-state"><div className="state-icon">◉</div><span>REPORT CONFIDENCIAL</span><h1>Entre para acessar</h1><p>Este report contém atividades identificadas por pessoa e é exclusivo da administração.</p><a className="button primary signin-button" href="/signin-with-chatgpt?return_to=%2F">Entrar com ChatGPT</a></div>;
-  if (access === "forbidden") return <div className="projects-state protected-state"><div className="state-icon">🔒</div><span>ACESSO ADMINISTRATIVO</span><h1>Report exclusivo para Stefany</h1><p>Sua equipe pode registrar atividades, mas somente a conta administradora consegue visualizar o relatório consolidado.</p></div>;
   if (access === "error" || !data) return <div className="projects-state protected-state"><div className="state-icon">↻</div><h1>Não foi possível gerar o report</h1><button className="button primary" onClick={loadReport}>Tentar novamente</button></div>;
 
   return (
     <>
       <div className="reports-header">
         <div><div className="eyebrow">REPORT ADMINISTRATIVO</div><h1>Atividade da equipe</h1><p>Quem carregou o quê, em qual projeto, e quais correções foram solicitadas.</p></div>
-        <div className="reports-owner"><span>VISÍVEL SOMENTE PARA</span><strong>{data.admin.email}</strong></div>
+        <div className="reports-owner"><span>REGISTRADO COMO</span><strong>{data.admin.displayName}</strong></div>
         <button className="button primary" onClick={exportCsv}>⇩ Exportar Excel / CSV</button>
       </div>
 

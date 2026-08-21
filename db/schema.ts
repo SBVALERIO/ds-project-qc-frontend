@@ -32,6 +32,8 @@ export const projectEvents = sqliteTable(
     revision: text("revision").notNull().default(""),
     status: text("status").notNull().default("Registrado"),
     notes: text("notes").notNull().default(""),
+    findingsSummary: text("findings_summary").notNull().default(""),
+    findingsJson: text("findings_json").notNull().default("[]"),
     createdBy: text("created_by").notNull(),
     createdByEmail: text("created_by_email").notNull(),
     createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),

@@ -6,6 +6,8 @@ CREATE TABLE `project_events` (
 	`revision` text DEFAULT '' NOT NULL,
 	`status` text DEFAULT 'Registrado' NOT NULL,
 	`notes` text DEFAULT '' NOT NULL,
+	`findings_summary` text DEFAULT '' NOT NULL,
+	`findings_json` text DEFAULT '[]' NOT NULL,
 	`created_by` text NOT NULL,
 	`created_by_email` text NOT NULL,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP NOT NULL,

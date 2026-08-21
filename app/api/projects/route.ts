@@ -1,17 +1,9 @@
 import { desc } from "drizzle-orm";
-import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { projectEvents, projects } from "../../../db/schema";
-
-function isDsUser(email: string) {
-  return email.toLowerCase().endsWith("@ds-miami.com");
-}
+import { TEAM_AUTHOR, TEAM_AUTHOR_EMAIL } from "../../team-author";
 
 export async function GET() {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
-
   try {
     const db = getDb();
     const [projectRows, eventRows] = await Promise.all([
@@ -20,7 +12,7 @@ export async function GET() {
     ]);
 
     return Response.json({
-      user: { displayName: user.displayName, email: user.email },
+      user: { displayName: TEAM_AUTHOR, email: TEAM_AUTHOR_EMAIL },
       projects: projectRows.map((project) => ({
         ...project,
         events: eventRows.filter((event) => event.projectId === project.id),
@@ -33,10 +25,6 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
-
   const payload = (await request.json()) as { name?: string; code?: string; projectType?: string };
   const name = payload.name?.trim() ?? "";
   if (!name) return Response.json({ error: "O nome do projeto é obrigatório." }, { status: 400 });
@@ -51,8 +39,8 @@ export async function POST(request: Request) {
       name,
       code: payload.code?.trim() ?? "",
       projectType: payload.projectType?.trim() || "Residential",
-      createdBy: user.userId,
-      createdByEmail: user.email,
+      createdBy: TEAM_AUTHOR,
+      createdByEmail: TEAM_AUTHOR_EMAIL,
     })
     .returning();
 
@@ -65,8 +53,8 @@ export async function POST(request: Request) {
       title: "Projeto criado",
       status: "Ativo",
       notes: "Timeline iniciada no DS Project QC.",
-      createdBy: user.userId,
-      createdByEmail: user.email,
+      createdBy: TEAM_AUTHOR,
+      createdByEmail: TEAM_AUTHOR_EMAIL,
     })
     .returning();
 

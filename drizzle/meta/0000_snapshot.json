@@ -59,6 +59,22 @@
           "autoincrement": false,
           "default": "''"
         },
+        "findings_summary": {
+          "name": "findings_summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "findings_json": {
+          "name": "findings_json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'[]'"
+        },
         "created_by": {
           "name": "created_by",
           "type": "text",

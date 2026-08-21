@@ -1,17 +1,9 @@
 import { eq, sql } from "drizzle-orm";
-import { getChatGPTUser } from "../../chatgpt-auth";
 import { getDb } from "../../../db";
 import { projectEvents, projects } from "../../../db/schema";
-
-function isDsUser(email: string) {
-  return email.toLowerCase().endsWith("@ds-miami.com");
-}
+import { TEAM_AUTHOR, TEAM_AUTHOR_EMAIL } from "../../team-author";
 
 export async function POST(request: Request) {
-  const user = await getChatGPTUser();
-  if (!user) return Response.json({ error: "AUTH_REQUIRED" }, { status: 401 });
-  if (!isDsUser(user.email)) return Response.json({ error: "DS_EMAIL_REQUIRED" }, { status: 403 });
-
   const payload = (await request.json()) as {
     projectId?: string;
     documentType?: string;
@@ -19,6 +11,8 @@ export async function POST(request: Request) {
     revision?: string;
     status?: string;
     notes?: string;
+    findingsSummary?: string;
+    findingsJson?: string;
   };
 
   const projectId = payload.projectId?.trim() ?? "";
@@ -41,8 +35,10 @@ export async function POST(request: Request) {
       revision: payload.revision?.trim() ?? "",
       status: payload.status?.trim() || "Registrado",
       notes: payload.notes?.trim() ?? "",
-      createdBy: user.userId,
-      createdByEmail: user.email,
+      findingsSummary: payload.findingsSummary?.trim() ?? "",
+      findingsJson: payload.findingsJson?.trim() || "[]",
+      createdBy: TEAM_AUTHOR,
+      createdByEmail: TEAM_AUTHOR_EMAIL,
     })
     .returning();
 
