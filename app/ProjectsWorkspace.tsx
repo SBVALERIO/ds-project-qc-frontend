@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { uploadPdfSheets } from "./pdf-sheets";
 
 type Finding = {
   id: number;
@@ -55,7 +56,7 @@ function summarizeFindings(findings: Finding[]): string {
   return `${findings.length} achado${findings.length === 1 ? "" : "s"} · ${alta} alta, ${media} média, ${menor} menor`;
 }
 
-export function ProjectsWorkspace() {
+export function ProjectsWorkspace({ onOpenProject }: { onOpenProject?: (id: string, name: string) => void } = {}) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeId, setActiveId] = useState("");
   const [access, setAccess] = useState<AccessState>("loading");
@@ -174,6 +175,15 @@ export function ProjectsWorkspace() {
     setBusy(false);
     if (!response.ok) return setMessage("Não foi possível registrar esta etapa.");
     const data = (await response.json()) as { event: ProjectEvent };
+    if (eventFile) {
+      // Keep the sheets of this revision so the Pranchas tab can show them with the findings pinned.
+      try {
+        const saved = await uploadPdfSheets(eventFile, data.event.id, activeProject.id, (done, total) => setMessage(`Salvando pranchas… ${done}/${total}`));
+        setMessage(`${saved} prancha(s) salvas.`);
+      } catch {
+        setMessage("Achados salvos, mas não foi possível gerar as imagens das pranchas.");
+      }
+    }
     setProjects((items) => items.map((project) => project.id === activeProject.id
       ? { ...project, events: [data.event, ...project.events], updatedAt: data.event.createdAt }
       : project));
@@ -212,7 +222,7 @@ export function ProjectsWorkspace() {
             <div className="project-search">⌕ <input placeholder="Buscar projeto…" aria-label="Buscar projeto" /></div>
             <div className="project-card-list">
               {projects.map((project) => (
-                <button className={`project-card ${activeProject?.id === project.id ? "active" : ""}`} key={project.id} onClick={() => setActiveId(project.id)}>
+                <button className={`project-card ${activeProject?.id === project.id ? "active" : ""}`} key={project.id} onClick={() => setActiveId(project.id)} onDoubleClick={() => onOpenProject?.(project.id, project.name)}>
                   <span className="project-avatar">{project.name.slice(0, 2).toUpperCase()}</span>
                   <span><strong>{project.name}</strong><small>{project.code || "Sem código"} · {project.projectType}</small></span>
                   <em>{project.events.length}</em>
@@ -226,6 +236,7 @@ export function ProjectsWorkspace() {
               <div className="timeline-head">
                 <div><span>PROJETO ATIVO</span><h2>{activeProject.name}</h2><p>{activeProject.code || "Sem código"} · {activeProject.projectType} · {activeProject.status}</p></div>
                 <div className="timeline-actions">
+                  {onOpenProject && <button className="button primary" onClick={() => onOpenProject(activeProject.id, activeProject.name)}>Abrir projeto →</button>}
                   <button className="button compare-button" onClick={openComparison}>⇄ Comparar revisões</button>
                   <button className="button secondary" onClick={() => setShowEvent(true)}>＋ Adicionar à timeline</button>
                 </div>

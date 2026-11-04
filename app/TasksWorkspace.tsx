@@ -58,9 +58,9 @@ function openTaskCount(project: Project): number {
   }, 0);
 }
 
-export function TasksWorkspace() {
+export function TasksWorkspace({ projectId }: { projectId?: string } = {}) {
   const [projects, setProjects] = useState<Project[]>([]);
-  const [activeId, setActiveId] = useState("");
+  const [activeId, setActiveId] = useState(projectId ?? "");
   const [access, setAccess] = useState<Access>("loading");
   const [reasonDraftKey, setReasonDraftKey] = useState("");
   const [reasonDraft, setReasonDraft] = useState("");
@@ -178,7 +178,7 @@ export function TasksWorkspace() {
 
   return (
     <>
-      <div className="projects-header">
+      <div className={`projects-header ${projectId ? "scoped-hide" : ""}`}>
         <div><div className="eyebrow">TASKS POR PROJETO</div><h1>O que falta resolver</h1><p>Escolha um projeto pra ver os achados de QC das correções carregadas na timeline dele.</p></div>
         {activeProject && <button className="button" onClick={copyIrrelevantes}>⇪ Copiar irrelevantes</button>}
       </div>
@@ -192,7 +192,7 @@ export function TasksWorkspace() {
           <p>Crie um projeto na aba <b>Projetos</b> e carregue um Project Package na timeline pra ver as tasks aqui.</p>
         </div>
       ) : (
-        <div className="projects-layout">
+        <div className={`projects-layout ${projectId ? "scoped" : ""}`}>
           <aside className="project-list-panel">
             <div className="panel-label">{projects.length} PROJETO{projects.length === 1 ? "" : "S"}</div>
             <div className="project-card-list">

@@ -4,6 +4,7 @@ import { useMemo, useRef, useState } from "react";
 import { ProjectsWorkspace } from "./ProjectsWorkspace";
 import { ReportsWorkspace } from "./ReportsWorkspace";
 import { TasksWorkspace } from "./TasksWorkspace";
+import { PROJECT_TABS, ProjectDetail, type ProjectTab } from "./ProjectDetail";
 
 type FindingStatus = "Pendente" | "Corrigido" | "Non Applicable";
 
@@ -112,7 +113,10 @@ const initialFindings: Finding[] = [
   { id: 19, title: "Layers de plumbing/bath aparecem em pranchas não relacionadas", sheet: "p. 22–26 · múltiplas disciplinas", confidence: "Menor", evidence: "Visual", status: "Pendente", summary: "Labels de fixtures e bath accessories permanecem em Door, Wall Treatment e Curtain Plans.", expected: "Revisar layers do AutoCAD e exibir somente informações relevantes para cada prancha." },
 ];
 
-const navItems = ["Visão geral", "Projetos", "Pranchas", "Comparações", "Tasks", "Schedules", "Revisões", "Reports — Admin", "Casos conhecidos"];
+// "Projetos" is the master tab. Opening a project switches the sidebar to that
+// project's own tabs (Pranchas, Comparações, Tasks, Schedules, Revisões).
+const navItems = ["Projetos", "Visão geral", "Reports — Admin", "Casos conhecidos"];
+const NAV_ICONS: Record<string, string> = { "Visão geral": "⌂", Projetos: "▣", Pranchas: "▤", "Comparações": "⇄", Tasks: "✓", Schedules: "▦", "Revisões": "↻", "Reports — Admin": "≡", "Casos conhecidos": "◫" };
 
 const verifiedMatches = [
   "Door Schedule: tags e quantidades fecham nos dois pavimentos",
@@ -140,7 +144,9 @@ const coverageGroups = [
 export default function Home() {
   const [findings, setFindings] = useState(initialFindings);
   const [activeFinding, setActiveFinding] = useState(4);
-  const [activeNav, setActiveNav] = useState("Comparações");
+  const [activeNav, setActiveNav] = useState("Projetos");
+  const [openProject, setOpenProject] = useState<{ id: string; name: string } | null>(null);
+  const [projectOpenCount, setProjectOpenCount] = useState(0);
   const [filter, setFilter] = useState<"Todos" | FindingStatus>("Todos");
   const [groupFilter, setGroupFilter] = useState<{ name: string; ids: number[] } | null>(null);
   const [showNa, setShowNa] = useState(false);
@@ -278,16 +284,24 @@ export default function Home() {
       </header>
 
       <aside className="sidebar">
-        <div className="project-switcher">
-          <span>PROJETO ATIVO</span>
-          <strong>CASA@63</strong>
-          <small>Project Package AutoCAD · R02</small>
-        </div>
+        {openProject ? (
+          <div className="project-switcher">
+            <button className="back-to-projects" onClick={() => { setOpenProject(null); setActiveNav("Projetos"); }}>← Todos os projetos</button>
+            <span>PROJETO</span>
+            <strong>{openProject.name}</strong>
+          </div>
+        ) : (
+          <div className="project-switcher">
+            <span>DS PROJECT QC</span>
+            <strong>Projetos</strong>
+            <small>Abra um projeto para ver pranchas, tasks e revisões</small>
+          </div>
+        )}
         <nav aria-label="Navegação principal">
-          {navItems.map((item, index) => (
+          {(openProject ? [...PROJECT_TABS] : navItems).map((item) => (
             <button className={activeNav === item ? "active" : ""} key={item} onClick={() => setActiveNav(item)}>
-              <span className="nav-icon">{["⌂", "▣", "▤", "⇄", "✓", "▦", "↻", "≡", "◫"][index]}</span>{item}
-              {item === "Tasks" && <em>{counts.pending}</em>}
+              <span className="nav-icon">{NAV_ICONS[item] ?? "•"}</span>{item}
+              {openProject && item === "Tasks" && projectOpenCount > 0 && <em>{projectOpenCount}</em>}
             </button>
           ))}
         </nav>
@@ -299,7 +313,7 @@ export default function Home() {
       </aside>
 
       <section className="workspace">
-        {activeNav === "Projetos" ? <ProjectsWorkspace /> : activeNav === "Reports — Admin" ? <ReportsWorkspace /> : activeNav === "Tasks" ? <TasksWorkspace /> : <>
+        {openProject && (PROJECT_TABS as readonly string[]).includes(activeNav) ? <ProjectDetail key={openProject.id} projectId={openProject.id} tab={activeNav as ProjectTab} onOpenCount={setProjectOpenCount} /> : activeNav === "Projetos" ? <ProjectsWorkspace onOpenProject={(id, name) => { setOpenProject({ id, name }); setActiveNav("Pranchas"); }} /> : activeNav === "Reports — Admin" ? <ReportsWorkspace /> : activeNav === "Tasks" ? <TasksWorkspace /> : <>
         <div className="project-head">
           <div>
             <div className="eyebrow">PROJECT PACKAGE CHECK</div>
